@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scheme Caller — Rockland Area</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#14304F; --blue:#2D5F9E; --red:#C8281E; --red-dk:#9E1F17;
+  --bg:#E7EAEE; --card:#FFFFFF; --ink:#16202B; --mut:#5B6675;
+  --line:#C9CFD8; --ok:#1F7A3D; --warn:#B97A00;
+  --disp:'Oswald',Arial Narrow,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,monospace;
+  --body:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px}
+button{font-family:inherit;cursor:pointer}
+/* ---------- header ---------- */
+header{background:var(--navy);color:#fff;padding:14px 16px 12px;position:relative;overflow:hidden}
+header::after{content:"";position:absolute;right:-30px;top:-30px;width:140px;height:140px;border:10px solid rgba(255,255,255,.06);border-radius:50%}
+.h-title{font-family:var(--disp);font-weight:700;font-size:24px;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.h-sub{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:#AFC3DB;margin-top:5px;text-transform:uppercase}
+/* ---------- tabs ---------- */
+nav{display:flex;background:var(--navy);padding:0 8px;gap:2px}
+nav button{flex:1;background:transparent;border:none;color:#9DB3CC;font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;padding:10px 4px 12px;border-bottom:3px solid transparent}
+nav button.on{color:#fff;border-bottom-color:var(--red)}
+main{max-width:680px;margin:0 auto;padding:16px 14px 56px}
+section{display:none}section.on{display:block}
+/* ---------- mic button ---------- */
+.mic-wrap{display:flex;flex-direction:column;align-items:center;padding:10px 0 6px}
+.mic-btn{width:108px;height:108px;border-radius:50%;border:none;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 4px 14px rgba(20,48,79,.35);transition:background .2s}
+.mic-btn svg{width:44px;height:44px;fill:#fff}
+.mic-btn.live{background:var(--red)}
+.mic-btn.live::before,.mic-btn.live::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:3px solid var(--red);opacity:0;animation:pulse 1.8s infinite}
+.mic-btn.live::after{animation-delay:.9s}
+@keyframes pulse{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.35);opacity:0}}
+@media (prefers-reduced-motion:reduce){.mic-btn.live::before,.mic-btn.live::after{animation:none;opacity:.4}}
+.mic-state{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-top:10px;color:var(--mut)}
+.mic-state.live{color:var(--red);font-weight:600}
+.heard{min-height:24px;margin-top:8px;font-family:var(--mono);font-size:14px;color:var(--blue);text-align:center;padding:0 8px;word-break:break-word}
+/* ---------- result placard ---------- */
+.placard{background:var(--card);border:3px solid var(--ink);margin-top:14px;position:relative;display:none}
+.placard.show{display:block;animation:stamp .28s cubic-bezier(.2,1.4,.4,1)}
+@keyframes stamp{0%{transform:scale(1.12);opacity:0}100%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.placard.show{animation:none}}
+.plc-stripe{height:10px;background:repeating-linear-gradient(45deg,var(--red) 0 14px,var(--navy) 14px 28px)}
+.plc-body{padding:16px 18px 14px;text-align:center}
+.plc-route{font-family:var(--disp);font-weight:700;font-size:clamp(56px,17vw,96px);line-height:.95;letter-spacing:.01em;text-transform:uppercase}
+.plc-city{font-family:var(--disp);font-weight:600;font-size:clamp(22px,6vw,32px);letter-spacing:.06em;text-transform:uppercase;color:var(--blue);margin-top:2px}
+.plc-meta{font-family:var(--mono);font-size:13px;color:var(--mut);margin-top:8px;line-height:1.5}
+.plc-crid{position:absolute;top:16px;right:12px;font-family:var(--mono);font-size:12px;font-weight:600;background:var(--ink);color:#fff;padding:3px 8px}
+.plc-alt{border-top:1px dashed var(--line);padding:8px 14px 10px;font-family:var(--mono);font-size:12.5px;color:var(--mut);line-height:1.6}
+.plc-alt b{color:var(--ink)}
+.placard.miss .plc-route{font-size:clamp(28px,8vw,40px);color:var(--red)}
+.placard.ask .plc-route{font-size:clamp(26px,7vw,36px);color:var(--warn)}
+.ask-choices{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:4px 12px 14px}
+.ask-choices button{font-family:var(--disp);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:14px;padding:8px 14px;border:2px solid var(--ink);background:#fff}
+/* ---------- type fallback ---------- */
+.typebar{display:flex;gap:8px;margin-top:14px}
+.typebar input{flex:1;border:2px solid var(--line);padding:11px 12px;font-size:16px;font-family:var(--mono);background:#fff}
+.typebar input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.typebar button{background:var(--navy);color:#fff;border:none;padding:0 18px;font-family:var(--disp);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:14px}
+/* ---------- toggles / history ---------- */
+.rowline{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.lbl{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.switch{width:52px;height:28px;border-radius:14px;background:var(--line);border:none;position:relative;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch.on{background:var(--ok)}.switch.on::after{left:27px}
+.hist{margin-top:8px}
+.hist-item{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-left:4px solid var(--navy);padding:8px 10px;margin-top:6px;font-family:var(--mono);font-size:13px}
+.hist-item .hr{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.03em}
+.hist-item.miss{border-left-color:var(--red);color:var(--mut)}
+/* ---------- cards / setup ---------- */
+.card{background:#fff;border:1px solid var(--line);padding:16px;margin-top:14px}
+.card h2{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+.card p{font-size:14.5px;line-height:1.55;color:var(--ink)}
+.card p.dim{color:var(--mut);font-size:13.5px}
+.card select{width:100%;margin-top:10px;padding:10px;font-size:15px;border:2px solid var(--line);background:#fff;font-family:var(--mono)}
+.btn{display:inline-block;background:var(--navy);color:#fff;border:none;padding:11px 20px;font-family:var(--disp);font-weight:600;font-size:14px;letter-spacing:.07em;text-transform:uppercase;margin-top:12px}
+.btn.red{background:var(--red)}
+.btn.ghost{background:#fff;color:var(--ink);border:2px solid var(--ink);padding:9px 18px}
+.btn:disabled{opacity:.45;cursor:default}
+/* level meter */
+.meter{display:flex;gap:3px;height:64px;align-items:flex-end;margin-top:14px;background:var(--ink);padding:8px}
+.meter span{flex:1;background:#2F4054;min-height:3px}
+.meter span.lit{background:#46C06B}.meter span.lit.mid{background:#E8C23A}.meter span.lit.hot{background:#E4493C}
+.meter-read{font-family:var(--mono);font-size:13px;margin-top:8px;color:var(--mut)}
+.meter-read b{color:var(--ink)}
+/* training */
+.train-say{background:var(--ink);color:#fff;text-align:center;padding:22px 14px;margin-top:12px;transition:background .2s}
+.train-say.listening{background:var(--red)}
+.train-say.listening .ts-lbl{color:#FFD9D6}
+.train-bar{height:8px;background:var(--line);margin-top:10px;overflow:hidden}
+.train-bar-fill{height:100%;width:0;background:var(--ok);transition:width .3s}
+.train-say .ts-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.15em;color:#9DB3CC;text-transform:uppercase}
+.train-say .ts-word{font-family:var(--disp);font-weight:700;font-size:clamp(26px,8vw,40px);letter-spacing:.04em;text-transform:uppercase;margin-top:6px}
+.train-res{font-family:var(--mono);font-size:14px;margin-top:12px;min-height:44px;line-height:1.5}
+.train-res .good{color:var(--ok);font-weight:600}
+.train-res .bad{color:var(--red);font-weight:600}
+.alias-list{margin-top:10px}
+.alias-item{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:13px;background:#fff;border:1px solid var(--line);padding:7px 10px;margin-top:5px}
+.alias-item button{background:none;border:none;color:var(--red);font-size:16px;padding:0 4px}
+.train-ctl{display:flex;gap:10px;flex-wrap:wrap}
+/* browse */
+.browse-box{width:100%;border:2px solid var(--line);padding:11px 12px;font-size:16px;font-family:var(--mono);margin-top:12px;background:#fff}
+.street-row{background:#fff;border:1px solid var(--line);padding:9px 12px;margin-top:6px;font-family:var(--mono);font-size:14px}
+.street-row .sr-name{font-weight:600}
+.street-row .sr-det{font-size:12.5px;color:var(--mut);margin-top:4px;line-height:1.7;display:none}
+.street-row.open .sr-det{display:block}
+.sr-det .crid{color:var(--navy);font-weight:600}
+.plc-flagbar{border-top:1px solid var(--line);padding:8px;text-align:center}
+.flag-btn{background:none;border:none;color:var(--mut);font-family:var(--mono);font-size:12.5px;padding:4px 8px}
+.flag-btn:active,.flag-btn.done{color:var(--red);font-weight:600}
+.feedbar{margin-top:18px;background:#fff;border:1px solid var(--line);border-top:4px solid var(--blue);padding:12px 14px}
+.fb-stat{font-family:var(--mono);font-size:13px;color:var(--ink);margin-bottom:10px}
+.fb-stat b{color:var(--blue)}
+.fb-btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn.sm{padding:8px 14px;margin-top:0;font-size:12.5px}
+.foot{margin-top:26px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.06em}
+.banner{padding:11px 14px;font-size:13.5px;line-height:1.5;border-radius:0}
+.banner.warn{background:#FFF4E0;border:1px solid #E8C23A;color:#5b4a12}
+.banner.bad{background:#FBE3E1;border:1px solid var(--red);color:#7a1610}
+.banner.ok{background:#E3F3E8;border:1px solid var(--ok);color:#13502a}
+.banner b{font-weight:700}
+.nosr{background:#FFF4E0;border:1px solid #E8C23A;padding:12px;margin-top:14px;font-size:14px;line-height:1.5;display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="h-title">Scheme Caller</div>
+  <div class="h-sub">Rockland 04841 · Owls Head 04854 · Rockport 04856 · Thomaston 04861</div>
+</header>
+<nav>
+  <button class="on" data-tab="sort">Sort</button>
+  <button data-tab="mic">Mic Setup</button>
+  <button data-tab="train">Training</button>
+  <button data-tab="browse">Browse</button>
+</nav>
+<main>
+
+<!-- ============ SORT ============ -->
+<section id="tab-sort" class="on">
+  <div class="banner" id="ready" style="display:none"></div>
+  <div class="nosr" id="nosr">This browser doesn't support speech recognition. Use Chrome, Edge, or Safari — or type the address below.</div>
+  <div class="mic-wrap">
+    <button class="mic-btn" id="micBtn" aria-label="Start listening">
+      <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+    </button>
+    <div class="mic-state" id="micState">Tap to listen</div>
+    <div class="heard" id="heard"></div>
+  </div>
+
+  <div class="placard" id="placard">
+    <div class="plc-stripe"></div>
+    <div class="plc-crid" id="plcCrid"></div>
+    <div class="plc-body">
+      <div class="plc-route" id="plcRoute"></div>
+      <div class="plc-city" id="plcCity"></div>
+      <div class="plc-meta" id="plcMeta"></div>
+    </div>
+    <div class="plc-alt" id="plcAlt" style="display:none"></div>
+    <div class="ask-choices" id="askChoices" style="display:none"></div>
+    <div class="plc-flagbar"><button id="flagWrong" class="flag-btn" style="display:none">⚑ This was wrong</button></div>
+  </div>
+
+  <div class="typebar">
+    <input id="typeIn" placeholder="or type: 21 Limerock St 04841" autocomplete="off" autocapitalize="off">
+    <button id="typeGo">Find</button>
+  </div>
+
+  <div class="rowline">
+    <span class="lbl">Speak results out loud</span>
+    <button class="switch on" id="speakSw" role="switch" aria-checked="true" aria-label="Speak results out loud"></button>
+  </div>
+
+  <div class="hist" id="hist"></div>
+
+  <div class="feedbar">
+    <div class="fb-stat" id="fbStat">No tests recorded yet.</div>
+    <div class="fb-btns">
+      <button class="btn ghost sm" id="shareBtn">Send my results</button>
+      <button class="btn ghost sm" id="clearLog">Clear log</button>
+    </div>
+    <p class="dim" id="shareNote" style="margin-top:8px;display:none"></p>
+  </div>
+</section>
+
+<!-- ============ MIC SETUP ============ -->
+<section id="tab-mic">
+  <div class="card">
+    <h2>Pick your microphone</h2>
+    <p>Choose the mic or Bluetooth headset you want, then run the level test and talk at your normal sorting volume.</p>
+    <select id="micSel"><option>Tap "Enable microphone" first</option></select>
+    <button class="btn" id="micPerm">Enable microphone</button>
+    <button class="btn ghost" id="meterBtn" disabled>Start level test</button>
+    <div class="meter" id="meter"></div>
+    <div class="meter-read" id="meterRead">Level: — </div>
+    <p class="dim" style="margin-top:12px">Note: the voice recognizer always uses your device's <b>default</b> microphone. This test confirms a mic is picking you up — if the wrong one responds, set your headset as the default mic in your phone or computer's sound settings (or connect it by Bluetooth) and test again.</p>
+  </div>
+</section>
+
+<!-- ============ TRAINING ============ -->
+<section id="tab-train">
+  <div class="card">
+    <h2>Teach it your voice</h2>
+    <p>These are the names speech engines trip on most. Tap <b>Start training</b> and read each one aloud when it lights up — the app captures how <i>you</i> say it and corrects itself from then on. Under a minute.</p>
+    <div class="train-say" id="trainStage">
+      <div class="ts-lbl" id="trainLbl">Ready when you are</div>
+      <div class="ts-word" id="trainWord">—</div>
+    </div>
+    <div class="train-bar"><div class="train-bar-fill" id="trainFill"></div></div>
+    <div class="train-res" id="trainRes"></div>
+    <div class="train-ctl">
+      <button class="btn red" id="trainStart">Start training</button>
+      <button class="btn ghost" id="trainSkip" style="display:none">Skip this one</button>
+      <button class="btn ghost" id="trainStop" style="display:none">Stop</button>
+    </div>
+    <div id="trainMore" style="display:none;margin-top:14px">
+      <p class="dim" id="trainDone"></p>
+      <button class="btn" id="trainAdd5">Want more accuracy? Add 5 more words</button>
+      <button class="btn ghost" id="trainRedo">Redo this set</button>
+    </div>
+    <p class="dim" id="trainProg" style="margin-top:10px"></p>
+  </div>
+  <div class="card">
+    <h2>Learned corrections</h2>
+    <p class="dim">What the recognizer hears → the street it means. These apply instantly on the Sort screen. (They reset when the page closes — say the word and I'll make them save permanently next.)</p>
+    <div class="alias-list" id="aliasList"><p class="dim" style="margin-top:8px">None yet.</p></div>
+  </div>
+</section>
+
+<!-- ============ BROWSE ============ -->
+<section id="tab-browse">
+  <input class="browse-box" id="browseIn" placeholder="Search street names…" autocomplete="off">
+  <div id="browseList"></div>
+</section>
+
+<div class="foot">SCHEME CALLER · ALPHA · CARRIER ROUTE SCHEME JUNE 2026 · 1,187 LINE ITEMS</div>
+</main>
+
+<script>
+/* ================= DATA ================= */
+/* [lo, hi, parity(O/E/B), STREET, SUFFIX, DIR, ZIP, CRID] */
+const DATA=[["1","99","B","ACADIA","DR","","04841","C001"],["1","99","B","ACHORN","ST","","04841","C001"],["1","99","B","ACORN","LN","","04856","R001"],["1","99","B","ADMONTEM","AVE","","04841","C003"],["1","99","B","AIRPORT","RD","","04854","H032"],["801","899","B","ALAKENT","RD","","04854","H032"],["1","99","B","ALEXANDER","DR","","04856","R002"],["1","18","B","ALPINE","WAY","","04856","R002"],["1","22","B","AMELIA","DR","","04861","R004"],["1","99","B","AMESBURY","ST","","04841","C003"],["1","99","B","AMSBURY","ST","","04856","R003"],["1","99","B","ANCHOR","DR","","04856","R002"],["1","99","B","ANCHORAGE","LN","","04854","H032"],["1","99","B","ANNA BELLE","LN","","04861","C002"],["1","99","B","ANNIS","LN","","04856","R003"],["1","99","B","APPLEWOOD","RD","","04856","R001"],["1","99","B","ASH ISLAND VIEW","RD","","04854","H032"],["1","599","B","ASH POINT","DR","","04854","H032"],["1","99","B","ASHLAND","DR","","04861","R011"],["1","99","B","ASHLEY","TER","","04856","R002"],["1","99","B","ASHMERE","TER","","04854","H032"],["1","10","B","ATLANTIC","HWY","","04861","C002"],["11","82","B","ATLANTIC","HWY","","04861","R011"],["1","99","B","ATLANTIC","ST","","04841","C007"],["1","99","B","AUSTIN","LN","","04856","R002"],["1","99","B","AUTUMN","ST","","04841","C007"],["1","50","B","BAKERS","WAY","","04856","R001"],["1","299","B","BALLYHAC","RD","","04854","H032"],["1","99","B","BARRETT","DR","","04856","R001"],["1","99","B","BARTER","RD","","04841","R005"],["1","99","B","BARTLETT","DR","","04841","C002"],["1","10","B","BAY VIEW","DR","","04856","R001"],["1","99","B","BAYBERRY","LN","","04856","R002"],["1","299","B","BAYSIDE","","W","04854","H032"],["1","99","B","BAYVIEW","SQ","","04841","C001"],["1","99","B","BAYVIEW","TER","","04854","H032"],["1","99","B","BEACH","ST","","04854","H032"],["1","99","B","BEACON","ST","","04841","C002"],["1","99","B","BEAL","ST","","04856","R001"],["1","99","B","BEAUCHAMP","ST","","04856","R003"],["1","199","B","BEAUCHAMP POINT","RD","","04856","R003"],["1","199","O","BEECH","ST","","04841","C004"],["2","10","E","BEECH","ST","","04841","C002"],["12","74","E","BEECH","ST","","04841","C004"],["76","98","E","BEECH","ST","","04841","C006"],["100","198","E","BEECH","ST","","04841","C004"],["1","399","B","BEECH HILL","RD","","04856","R001"],["1","110","B","BEECHWOOD","ST","","04861","C002"],["111","398","B","BEECHWOOD","ST","","04861","R011"],["1","99","B","BELLAS","WAY","","04856","R002"],["1","199","B","BELLEVUE","ST","","04854","H032"],["1A","97A","O","BELLEVUE","ST","","04854","H032"],["1","99","B","BELVIDERE","ST","","04841","C006"],["1","299","B","BELYEA","ST","","04841","C001"],["1","99","B","BEN PAUL","LN","","04856","R002"],["1","99","B","BENNER","LN","","04854","H032"],["1","99","B","BENNER","RD","","04841","R005"],["1","99","B","BERKLEY","ST","","04841","C006"],["1","99","O","BIRCH","ST","","04841","C003"],["1","99","O","BIRCH","ST","","04856","R003"],["2","14","E","BIRCH","ST","","04841","C003"],["2","20","E","BIRCH","ST","","04856","R003"],["16","98","E","BIRCH","ST","","04841","C003"],["22","98","E","BIRCH","ST","","04856","R003"],["1","99","B","BIRCH STREET","PL","","04841","C003"],["1","99","B","BIRCHMONT","ST","","04854","H032"],["1","99","B","BIRDS","LOOP","","04854","H032"],["1","99","B","BLACKBERRY","LN","","04856","R001"],["1","99","B","BLAKE","PL","","04841","C003"],["1","99","B","BLUEBERRY","LN","","04856","R001"],["1","86","B","BOBOLINK","LN","","04861","R011"],["1","399","B","BOG","RD","","04841","R005"],["1","99","B","BONNY","ST","","04856","R001"],["1","199","B","BOOKER","ST","","04861","C002"],["31-33","31-33","B","BOOKER","ST","","04861","C002"],["1","99","B","BOULDER","WAY","","04856","R002"],["1","99","B","BRANCH BROOK","RD","","04861","R011"],["1","99","B","BRANDY BROOK","CIR","","04856","R002"],["1","99","B","BRANNAN","DR","","04841","R005"],["1","99","B","BREAKWATER","DR","","04841","C001"],["1","99","B","BREWSTER","PT","","04856","R002"],["1","99","B","BREWSTER","ST","","04841","C003"],["1","99","B","BRICK","ST","","04841","C006"],["1","99","B","BRISTOL","DR","","04856","R002"],["1","31","B","BROAD","ST","","04841","C006"],["32","99","B","BROAD","ST","","04841","C009"],["1","99","B","BROAD COVE","LN","","04854","R777"],["1","99","O","BROAD STREET","PL","","04841","C009"],["2","98","E","BROAD STREET","PL","","04841","C006"],["1","17","O","BROADWAY","","","04841","C007"],["1","25","O","BROADWAY","","","04861","C006"],["2","24","E","BROADWAY","","","04861","C006"],["2","140","E","BROADWAY","","","04841","C006"],["19","139","O","BROADWAY","","","04841","C006"],["141","213","O","BROADWAY","","","04841","C009"],["142","202","E","BROADWAY","","","04841","C009"],["204","218","E","BROADWAY","","","04841","C006"],["215","273","O","BROADWAY","","","04841","C004"],["220","260","E","BROADWAY","","","04841","C004"],["262","370","E","BROADWAY","","","04841","C002"],["275","359","O","BROADWAY","","","04841","C002"],["361","499","O","BROADWAY","","","04841","C003"],["372","498","E","BROADWAY","","","04841","C003"],["1","99","B","BROADWAY","PL","","04841","C002"],["1","99","B","BROOK","ST","","04856","R003"],["1","1","B","BROOKLYN HTS","RD","","04861","H068"],["2","2","B","BROOKLYN HTS","RD","","04861","R011"],["3","77","O","BROOKLYN HTS","RD","","04861","H068"],["4","24","E","BROOKLYN HTS","RD","","04861","H068"],["26","26","E","BROOKLYN HTS","RD","","04861","R011"],["28","40","E","BROOKLYN HTS","RD","","04861","H068"],["44","44","E","BROOKLYN HTS","RD","","04861","R011"],["52","52","E","BROOKLYN HTS","RD","","04861","H068"],["56","60","E","BROOKLYN HTS","RD","","04861","R011"],["62","66","E","BROOKLYN HTS","RD","","04861","H068"],["68","78","E","BROOKLYN HTS","RD","","04861","R011"],["1","99","B","BROOKS","WAY","","04854","H032"],["1","99","B","BUNKER","ST","","04841","C003"],["1","22","B","BURROWS","ST","","04841","R005"],["1","50","B","BUSINESS","CIR","","04856","R001"],["1","299","B","BUTTERMILK","LN","","04861","R004"],["1","30","B","C-R INDUSTRIAL","PARK","","04856","R003"],["1","99","B","CABANA","DR","","04856","R002"],["1","199","B","CALDERWOOD","LN","","04856","R003"],["1","11","O","CAMDEN","ST","","04841","C001"],["1","29","O","CAMDEN","ST","","04856","R003"],["2","22","E","CAMDEN","ST","","04841","C001"],["2","30","E","CAMDEN","ST","","04856","R003"],["3","3","O","CAMDEN","ST","","04856","R003"],["13","37","O","CAMDEN","ST","","04841","C001"],["20","58","E","CAMDEN","ST","","04841","C001"],["20A","20A","B","CAMDEN","ST","","04841","C001"],["20B","20B","B","CAMDEN","ST","","04841","C001"],["20C","20C","B","CAMDEN","ST","","04841","C001"],["31","71","O","CAMDEN","ST","","04856","R003"],["32","32","E","CAMDEN","ST","","04841","C001"],["32","98","E","CAMDEN","ST","","04856","R003"],["39","99","O","CAMDEN","ST","","04841","C001"],["60","100","E","CAMDEN","ST","","04841","C001"],["73","199","O","CAMDEN","ST","","04856","R003"],["91","275","O","CAMDEN","ST","","04841","C001"],["100","198","E","CAMDEN","ST","","04856","R003"],["102","298","E","CAMDEN","ST","","04841","C001"],["235","235","B","CAMDEN","ST","","04841","C001"],["235","299","O","CAMDEN","ST","","04841","C001"],["1","99","B","CAMDEN STREET","TER","","04841","C001"],["1","99","B","CAMROCK","DR","","04856","R003"],["1","99","B","CANNS BEACH","RD","","04854","H032"],["1","99","B","CARDINAL","LN","","04856","R002"],["1","99","B","CARROLLS","LN","","04841","C007"],["1","99","B","CEDAR","ST","","04841","C003"],["100","114","E","CEDAR","ST","","04841","C001"],["101","299","O","CEDAR","ST","","04841","C003"],["116","298","E","CEDAR","ST","","04841","C003"],["1","99","B","CENTER","ST","","04841","C002"],["1","99","B","CENTRAL","ST","","04856","R003"],["1","99","B","CHAPEL","RD","","04856","R003"],["1","20","B","CHARA","LN","","04854","H032"],["1","12","B","CHARLES","ST","","04861","C002"],["1","99","B","CHARLOTTE","LN","","04854","H032"],["1","99","B","CHESTNUT","ST","","04841","C003"],["1","99","B","CHICKAWAUKIE POND","RD","","04856","R002"],["1","99","B","CHILDRENS","WAY","","04856","R003"],["1","99","B","CHRIS","RD","","04856","R001"],["1","99","B","CHRISTINE","CT","","04856","R001"],["1","99","B","CHURCH","ST","","04856","R003"],["1","99","B","CITY","PL","","04841","C006"],["1","99","B","CLAM COVE","DR","","04856","R002"],["1","99","B","CLAMSHELL","LN","","04854","H032"],["1","99","B","CLAREMONT","ST","","04841","C009"],["1","99","B","CLARENDON","ST","","04841","C007"],["1","36","B","CLARK","ST","","04861","C002"],["1","99","B","CLAYTON","LN","","04841","R005"],["1","99","B","CLIFFSIDE","DR","","04856","R002"],["1","99","B","COLBY","WAY","","04861","R011"],["1","99","B","COLSON","DR","","04854","H032"],["1","99","B","COLUMBIA","AVE","","04841","C006"],["1101","1199","B","COMANCOL","ST","","04841","C006"],["1","7","O","COMMERCIAL","ST","","04856","R003"],["1","99","O","COMMERCIAL","ST","","04841","C004"],["2","8","E","COMMERCIAL","ST","","04856","R003"],["2","98","E","COMMERCIAL","ST","","04841","C004"],["9","547","O","COMMERCIAL","ST","","04856","R003"],["10","310","E","COMMERCIAL","ST","","04856","R003"],["312","462","E","COMMERCIAL","ST","","04856","R002"],["464","546","E","COMMERCIAL","ST","","04856","R003"],["548","1024","E","COMMERCIAL","ST","","04856","R002"],["549","599","O","COMMERCIAL","ST","","04856","R002"],["601","699","O","COMMERCIAL","ST","","04856","R003"],["701","857","O","COMMERCIAL","ST","","04856","R002"],["859","869","O","COMMERCIAL","ST","","04856","R003"],["871","915","O","COMMERCIAL","ST","","04856","R002"],["917","1119","O","COMMERCIAL","ST","","04856","R001"],["1026","1032","E","COMMERCIAL","ST","","04856","R001"],["1034","1198","E","COMMERCIAL","ST","","04856","R002"],["1121","1199","O","COMMERCIAL","ST","","04856","R002"],["100","100","B","COMMONS","DR","","04841","R005"],["1","99","B","CONGO","AVE","","04861","C001"],["1","99","B","COOPERS BEACH","RD","","04854","H032"],["1","99","B","COTTAGE","AVE","","04854","H032"],["1","99","B","COTTAGE","ST","","04841","C003"],["1","99","B","COUNTRY","WAY","","04841","C002"],["1","99","B","COUNTRY INN","WAY","","04856","R003"],["1","99","B","COURT","ST","","04841","C002"],["1","10","B","COUTU","CT","","04856","R002"],["1","99","B","COVE VIEW","LN","","04856","R002"],["1","99","B","CRESCENT","ST","","04841","C007"],["1","99","B","CRESCENT","TER","","04854","H032"],["1","99","B","CRESCENT BEACH","RD","","04854","H032"],["2","98","B","CRICKET","LN","","04856","R001"],["1","99","B","CROCKETTS","PT","","04841","C004"],["1","199","B","CROCKETTS BEACH","RD","","04854","H032"],["1","11","O","CROSS","ST","","04861","C001"],["1","199","O","CROSS","ST","","04856","R003"],["2","12","E","CROSS","ST","","04861","C001"],["2","198","E","CROSS","ST","","04856","R003"],["2","12","B","CURTIS","LN","","04856","R001"],["1","99","B","DEANS","WAY","","04856","R003"],["1","199","B","DEARBORN","LN","","04856","R002"],["1","99","B","DEER","LN","","04856","R002"],["1","99","B","DEER RUN","RD","","04861","R011"],["1","99","B","DEERFIELD","LN","","04854","H032"],["1","99","O","DEERFIELD","LN","","04841","R005"],["2","98","E","DEERFIELD","LN","","04841","R005"],["1","14","B","DENNIS","DR","","04861","C002"],["1","106","B","DEXTER","ST","","04861","R004"],["1","99","B","DEXTER ST","EXT","","04861","R004"],["1","199","B","DODGE MOUNTAIN","RD","","04841","R005"],["1","99","B","DOE","LN","","04856","R002"],["1","20","B","DOGWOOD","DR","","04854","H032"],["1","10","B","DONAHUE","PL","","04841","C006"],["1","99","B","DORY","LN","","04854","H032"],["1","40","B","DOUGLAS","LN","","04854","H032"],["1","99","B","DRIFTWOOD","LN","","04854","H032"],["1","14","B","DUANE","AVE","","04861","C002"],["269","499","B","DUBLIN","RD","","04854","H032"],["1","399","B","DUNBAR","RD","","04861","R011"],["1","44","B","DUNN","ST","","04861","C001"],["1","99","B","DUNTON","AVE","","04841","C007"],["1","42","B","DWIGHT","ST","","04861","C001"],["1","99","B","DYER POINT","RD","","04854","H032"],["1","99","B","EASTWARD","","","04856","R002"],["1","99","B","EDWARDS","ST","","04841","C006"],["1","99","B","ELIZA STEELE","DR","","04841","C003"],["1","99","B","ELIZABETH","LN","","04854","H032"],["1","36","B","ELLIOT","ST","","04861","C001"],["1","25","B","ELLTEE","CIR","","04861","R004"],["1","99","B","ELM","CT","","04861","C001"],["1","99","O","ELM","ST","","04861","C001"],["1","99","O","ELM","ST","","04856","R003"],["1","99","O","ELM","ST","","04841","C004"],["2","8","E","ELM","ST","","04856","R003"],["2","22","E","ELM","ST","","04861","C001"],["2","98","E","ELM","ST","","04841","C004"],["10","98","E","ELM","ST","","04856","R003"],["20","24","E","ELM","ST","","04841","C004"],["24","98","E","ELM","ST","","04861","C001"],["1","99","B","EMERY","AVE","","04861","R004"],["1","99","O","EMERY","AVE","","04841","C006"],["2","98","E","EMERY","AVE","","04841","C006"],["1","30","B","EMILYS","WAY","","04841","C002"],["1","99","B","ERIN","CT","","04861","C002"],["1","91","B","ERIN","ST","","04861","C002"],["1","99","B","EVERETT","AVE","","04854","H032"],["1","99","B","EVERGREEN","LN","","04854","H032"],["1","28","B","EVOLUTION","DR","","04854","H032"],["1","20","B","FAIR BANKS","DR","","04856","R002"],["1","99","B","FALES","ST","","04841","C001"],["1","48","B","FARWELL","DR","","04841","R005"],["1","99","B","FATHOM","LN","","04854","H032"],["1","99","B","FERN","ST","","04841","C002"],["1","99","B","FERN","WAY","","04856","R001"],["1","12","B","FERRY","ST","","04861","C001"],["1","99","B","FIDDLEWOOD","LN","","04856","R002"],["1","99","B","FIELD","ST","","04841","C006"],["2","98","B","FIREFLY","DR","","04861","R011"],["101","130","B","FIRST","ST","","04841","C006"],["1","99","B","FIRST BROOK","RD","","04856","R003"],["1","76","B","FISH","ST","","04861","C001"],["1","99","B","FISK","LN","","04856","R001"],["1","99","B","FLORENCE","ST","","04841","C007"],["1","80","B","FLUKER","ST","","04861","C001"],["1","99","B","FOGG","ST","","04841","C002"],["1","99","B","FOREST","AVE","","04841","R005"],["1","99","B","FOREST","ST","W","04856","R002"],["1","99","B","FOREST GLEN","DR","","04856","R002"],["1","15","B","FOUNDATION","PL","","04841","C002"],["38","48","B","FOURTH","ST","","04841","C006"],["1","99","B","FOX","HOLW","","04854","H032"],["1","99","O","FRANKLIN","ST","","04841","C007"],["1","99","O","FRANKLIN","ST","","04856","R003"],["2","98","E","FRANKLIN","ST","","04856","R003"],["2","98","E","FRANKLIN","ST","","04841","C007"],["29","29","O","FRANKLIN","ST","","04841","C007"],["1","99","B","FREDERICK","ST","","04841","C003"],["1","199","B","FREEDOM","DR","","04854","H032"],["1","99","B","FRONT","ST","","04841","C001"],["1","99","B","FULTON","ST","","04841","C007"],["1","99","B","GAMAGE","LN","","04841","C007"],["1","99","B","GARDEN","AVE","","04841","R005"],["1","64","B","GARTHGANNON","RD","","04854","R777"],["1","15","O","GAY","ST","","04861","C001"],["1","65","O","GAY","ST","","04841","C002"],["2","8","E","GAY","ST","","04841","C002"],["2","16","E","GAY","ST","","04861","C001"],["10","18","E","GAY","ST","","04841","C002"],["16","16","E","GAY","ST","","04861","C001"],["18","74","E","GAY","ST","","04841","C002"],["67","199","B","GAY","ST","W","04841","C002"],["1","99","B","GAY STREET","PL","","04841","C002"],["1","30","B","GEORGES","ST","","04861","C002"],["1","99","B","GIGIS","PL","","04854","H032"],["1","18","B","GILCHREST","ST","","04861","C001"],["1","99","B","GILCHREST ST","PL","","04861","C001"],["1","199","B","GINN POINT","RD","","04854","H032"],["1","124","B","GLEASON","ST","","04861","C001"],["1","99","B","GLEN","ST","","04841","C001"],["1","99","B","GLEN COVE","DR","","04856","R002"],["1","99","B","GLENDALE","AVE","","04854","H032"],["1","99","B","GLENWOOD","AVE","","04841","R005"],["1","99","B","GORDON","DR","","04841","C007"],["1","99","B","GRACE","ST","","04841","C009"],["1","99","B","GRACE STREET","PL","","04841","C009"],["1","21","B","GRANITE","ST","","04841","C004"],["22","99","B","GRANITE","ST","","04841","C002"],["1","99","B","GRANITE","WAY","","04856","R003"],["1","99","B","GRANITE POINT","DR","","04854","H032"],["1","10","B","GRANITE POINT","PL","","04854","H032"],["1","99","B","GREAT MARSH","LN","","04854","H032"],["1","68","B","GREEN","ST","","04861","C001"],["1","99","B","GREEN","WAY","","04841","C009"],["1","108","B","GREENHOUSE HILL","RD","","04861","R011"],["1","99","O","GRIFFIN","AVE","","04841","C001"],["2","98","E","GRIFFIN","AVE","","04841","C003"],["1","99","O","GROVE","ST","","04841","C004"],["1","99","O","GROVE","ST","","04856","R003"],["2","24","E","GROVE","ST","","04856","R003"],["2","98","E","GROVE","ST","","04841","C004"],["26","98","E","GROVE","ST","","04856","R003"],["30","30","E","GROVE","ST","","04841","C004"],["1","99","B","GUPTIL","LN","","04854","H032"],["1","99","B","GURDY","ST","","04841","C002"],["1","151","B","GURNEY","ST","","04856","R001"],["1","99","B","HALET","AVE","","04841","R005"],["1","99","B","HALLS","LN","","04841","C007"],["1","99","B","HALLS","LN","W","04854","H032"],["3","3","B","HARBOR","LN","","04841","C001"],["1","99","B","HARBORSIDE","TER","","04854","H032"],["1","20","B","HARBORVIEW","DR","","04856","R003"],["1","199","B","HARBOUR HILL","DR","","04854","H032"],["1","99","B","HARJULA","LN","","04861","R011"],["1","99","B","HARKNESS BROOK","LN","","04856","R003"],["1","99","B","HARLEY","LN","","04854","H032"],["1","99","B","HARMONY","LN","","04856","R001"],["1","99","B","HARVEY","HL","","04856","R003"],["1","99","B","HAWTHORNE","DR","","04856","R002"],["1","99","B","HEAD OF BAY","DR","","04854","H032"],["1","99","B","HEADACRE FARM","RD","","04854","H032"],["1","99","B","HENDRICKSON POINT","RD","","04854","H032"],["1","63","B","HERITAGE","DR","","04854","H032"],["1","99","B","HIDDEN HORSE","LN","","04854","H032"],["1","5","O","HIGH","ST","","04841","C004"],["1","99","O","HIGH","ST","","04861","C006"],["1","99","O","HIGH","ST","","04856","R003"],["2","10","E","HIGH","ST","","04841","C004"],["2","20","E","HIGH","ST","","04856","R003"],["2","50","E","HIGH","ST","","04861","C006"],["7","9","O","HIGH","ST","","04841","C009"],["11","99","O","HIGH","ST","","04841","C004"],["12","18","E","HIGH","ST","","04841","C004"],["20","98","E","HIGH","ST","","04841","C009"],["22","98","E","HIGH","ST","","04856","R003"],["30","30","E","HIGH","ST","","04841","C009"],["52","124","E","HIGH","ST","","04861","C006"],["101","131","O","HIGH","ST","","04861","C006"],["1","99","B","HIGHLAND","ST","","04841","C006"],["1","99","B","HIGHLAND STREET","EXT","","04841","C006"],["1","99","B","HILL","ST","","04841","C002"],["1","99","B","HILLSIDE","AVE","","04854","H032"],["1","99","B","HILLTOP","DR","","04856","R002"],["1","99","B","HILLTOP","LN","","04841","R005"],["1","99","B","HOLIDAY BEACH","RD","","04854","H032"],["1","23","O","HOLMES","ST","","04841","C007"],["2","30","E","HOLMES","ST","","04841","C007"],["25","199","O","HOLMES","ST","","04841","C006"],["32","198","E","HOLMES","ST","","04841","C006"],["1","99","B","HOMESTEAD","LN","","04856","R002"],["1","99","B","HOPE","ST","","04856","R001"],["1","99","B","HOPE","RD","","04856","R001"],["1","99","B","HURD","LN","","04854","H032"],["1","99","B","HUSE","ST","","04856","R003"],["1","82","B","HYLER","ST","","04861","C001"],["1","99","B","ILVONEN","LN","","04854","H032"],["1","299","B","INGRAHAM","DR","","04854","H032"],["1","99","B","INGRAHAM","LN","","04841","C007"],["1","99","B","ISLAND VIEW","TER","","04854","H032"],["1","99","B","ITSOCOSY","LN","","04854","H032"],["1","99","B","JACOBS","LN","","04861","R011"],["1","99","B","JAMES","ST","","04841","C003"],["1","199","B","JAMESON POINT","RD","","04841","C001"],["1","99","B","JANUARY","LN","","04854","H032"],["1","99","B","JEFFERSON","ST","","04841","C001"],["1","99","B","JOHNS","ST","","04841","C003"],["1","99","B","JOHNSTON","RD","","04856","R001"],["1","99","B","JOURNEYS END","LN","","04854","H032"],["1","99","B","JRL","DR","","04841","C002"],["1","99","B","KAREN","LN","","04856","R001"],["1","99","B","KATAHDIN","AVE","","04841","C001"],["1","99","B","KATHYS","LN","","04856","R001"],["25","25","B","KEELSON","DR","","04856","R003"],["1","99","B","KELLER","DR","","04856","R001"],["1","99","B","KELLEYS","LN","","04841","C007"],["1","99","B","KENNY","LN","","04854","H032"],["1","99","B","KERMIT","LN","","04861","R004"],["1","99","B","KERYGMA","DR","","04856","R001"],["1","99","B","KIMBERLY","DR","","04856","R002"],["1","14","B","KINGS","WAY","","04856","R002"],["1","99","B","KNOLL","RD","","04854","H032"],["1","99","B","KNOTT","ST","","04841","C003"],["1","99","B","KNOWLTON","AVE","","04854","H032"],["1","99","B","KNOWLTON","PL","","04854","H032"],["1","99","B","KNOWLTON","ST","","04841","C002"],["1","23","O","KNOX","ST","","04861","C001"],["1","99","O","KNOX","ST","","04841","C003"],["2","24","E","KNOX","ST","","04861","C001"],["2","98","E","KNOX","ST","","04841","C003"],["25","199","O","KNOX","ST","","04861","C001"],["26","198","E","KNOX","ST","","04861","C001"],["1","99","B","KNOX RIDGE","AVE","","04861","C001"],["1","99","B","KOSSUTH","ST","","04861","C002"],["1","11","B","LAKE","AVE","","04841","C002"],["12","99","B","LAKE","AVE","","04841","R005"],["1","99","B","LAKE VIEW","TER","","04841","R005"],["1","99","B","LAKEMAN","LN","","04861","H068"],["1","127","O","LAKEVIEW","DR","","04841","C001"],["2","136","E","LAKEVIEW","DR","","04841","C001"],["129","199","O","LAKEVIEW","DR","","04841","R005"],["138","198","E","LAKEVIEW","DR","","04841","R005"],["1","99","B","LAUREL","ST","","04841","C007"],["1","99","B","LAWN","AVE","","04841","C003"],["1","99","B","LAWN AVENUE","EXT","","04841","C003"],["1","32","B","LAWRENCE","AVE","","04861","C001"],["1","99","B","LAWRENCE","ST","","04841","C007"],["29","99","B","LAWRENCE AVENUE","EXT","","04861","C001"],["1","99","B","LEDGEWOOD","DR","","04856","R002"],["1","99","B","LEDGEWOOD","LN","","04854","H032"],["1","99","B","LELAND","ST","","04841","C002"],["1","99","B","LEXINGTON","LN","","04856","R002"],["1","99","B","LIBERTY","ST","","04856","R001"],["6","186","B","LIGHTHOUSE","RD","","04854","R777"],["1","99","B","LILAC","CT","","04841","R005"],["1","99","B","LIME","ST","","04841","C004"],["1","41","O","LIMEROCK","ST","","04841","C004"],["1","99","O","LIMEROCK","ST","","04856","R003"],["2","22","E","LIMEROCK","ST","","04856","R003"],["2","30","E","LIMEROCK","ST","","04841","C004"],["21","21","O","LIMEROCK","ST","","04841","C770"],["21","21","O","LIMEROCK","ST","","04841","C004"],["24","54","E","LIMEROCK","ST","","04856","R003"],["32","62","E","LIMEROCK","ST","","04841","C004"],["43","75","O","LIMEROCK","ST","","04841","C004"],["56","98","E","LIMEROCK","ST","","04856","R003"],["64","138","E","LIMEROCK","ST","","04841","C009"],["77","135","O","LIMEROCK","ST","","04841","C009"],["137","335","O","LIMEROCK","ST","","04841","C006"],["140","336","E","LIMEROCK","ST","","04841","C006"],["337","399","B","LIMEROCK","ST","","04841","R005"],["1","7","O","LINCOLN","ST","","04841","C002"],["2","10","E","LINCOLN","ST","","04841","C002"],["9","15","O","LINCOLN","ST","","04841","C004"],["12","38","E","LINCOLN","ST","","04841","C004"],["17","99","O","LINCOLN","ST","","04841","C002"],["40","98","E","LINCOLN","ST","","04841","C002"],["1","99","B","LINDEN","ST","","04841","C007"],["1","99","B","LINDSEY","LN","","04861","C002"],["1","99","B","LINDSEY","ST","","04841","C004"],["1","99","B","LISLE","ST","","04841","C006"],["1","99","B","LITTLE BEAR","LN","","04856","R002"],["1","99","B","LITTLE BIG","LN","","04861","R011"],["1","99","B","LITTLE ISLAND","LN","","04854","H032"],["1","28","B","LITTLEFIELD","ST","","04841","C002"],["1","99","B","LMNOP","DR","","04854","H032"],["1","99","B","LONG HAUL","LN","","04854","H032"],["1","99","B","LOOKOUT","LN","","04856","R002"],["1","99","B","LOOKOUT","RD","","04854","H032"],["1","31","O","LOVEJOY","ST","","04841","C007"],["2","10","E","LOVEJOY","ST","","04841","C007"],["5","5","O","LOVEJOY","ST","","04841","C007"],["12","98","E","LOVEJOY","ST","","04841","C006"],["33","99","O","LOVEJOY","ST","","04841","C006"],["1","99","B","LOWELL LEDGE","LN","","04854","H032"],["1","99","B","LUCE","AVE","","04841","C006"],["1","199","B","LUCIA BEACH","RD","","04854","H032"],["1","99","B","LUDWIG","ST","","04861","C001"],["1","99","B","LUPINE","LN","","04856","R001"],["1","99","B","MACI","LN","","04856","R001"],["1","99","B","MADELYN","LN","","04856","R002"],["1","99","B","MAHALAS","LN","","04854","H032"],["1","3","O","MAIN","ST","","04861","C006"],["1","3","O","MAIN","ST","","04854","H032"],["1","21","O","MAIN","ST","","04856","R003"],["1","29","O","MAIN","ST","","04841","C007"],["2","4","E","MAIN","ST","","04861","C006"],["2","20","E","MAIN","ST","","04841","C007"],["2","28","E","MAIN","ST","","04856","R003"],["2","34","E","MAIN","ST","","04854","H032"],["5","5","O","MAIN","ST","","04854","H000"],["5","9","O","MAIN","ST","","04861","C006"],["6","28","E","MAIN","ST","","04861","C006"],["7","17","O","MAIN","ST","","04854","H032"],["11","33","O","MAIN","ST","","04861","C006"],["19","33","O","MAIN","ST","","04854","H032"],["22","36","E","MAIN","ST","","04841","C007"],["23","31","O","MAIN","ST","","04856","R003"],["25","45","O","MAIN","ST","","04841","C007"],["30","88","E","MAIN","ST","","04856","R003"],["32","54","E","MAIN","ST","","04861","C001"],["33","85","O","MAIN","ST","","04856","R003"],["35","57","O","MAIN","ST","","04861","C001"],["44","98","E","MAIN","ST","","04841","C007"],["47","65","O","MAIN","ST","","04841","C007"],["56","74","E","MAIN","ST","","04861","C001"],["59","61","O","MAIN","ST","","04861","C001"],["63","73","O","MAIN","ST","","04861","C002"],["67","81","O","MAIN","ST","","04841","C007"],["75","99","O","MAIN","ST","","04861","C002"],["76","98","E","MAIN","ST","","04861","C002"],["83","101","O","MAIN","ST","","04841","C007"],["84","84","E","MAIN","ST","","04861","C002"],["85","85","O","MAIN","ST","","04861","C002"],["87","101","O","MAIN","ST","","04856","R003"],["90","102","E","MAIN","ST","","04856","R003"],["100","112","E","MAIN","ST","","04861","C002"],["100","138","E","MAIN","ST","","04841","C007"],["101","133","O","MAIN","ST","","04861","C002"],["103","113","O","MAIN","ST","","04841","C007"],["103","199","O","MAIN","ST","","04856","R003"],["104","156","E","MAIN","ST","","04856","R003"],["108","126","E","MAIN","ST","","04861","C002"],["115","135","O","MAIN","ST","","04841","C007"],["128","134","E","MAIN","ST","","04861","C001"],["135","135","O","MAIN","ST","","04861","C000"],["136","146","E","MAIN","ST","","04861","C002"],["137","145","O","MAIN","ST","","04841","C007"],["137","145","O","MAIN","ST","","04861","C002"],["138","164","E","MAIN","ST","","04841","C007"],["147","159","O","MAIN","ST","","04841","C007"],["147","193","O","MAIN","ST","","04861","C002"],["148","190","E","MAIN","ST","","04861","C002"],["158","226","E","MAIN","ST","","04856","R003"],["161","171","O","MAIN","ST","","04841","C007"],["166","194","E","MAIN","ST","","04841","C007"],["167","167","O","MAIN","ST","","04861","C002"],["171","199","O","MAIN","ST","","04841","C007"],["181","199","O","MAIN","ST","","04861","C002"],["184","190","E","MAIN","ST","","04841","C007"],["192","198","E","MAIN","ST","","04861","C001"],["196","220","E","MAIN","ST","","04841","C007"],["200","200","E","MAIN","ST","","04861","C001"],["201","219","O","MAIN","ST","","04841","C007"],["201","299","O","MAIN","ST","","04856","R003"],["201","299","O","MAIN","ST","","04861","C002"],["202","232","E","MAIN","ST","","04861","C002"],["216","238","E","MAIN","ST","","04841","C007"],["221","239","O","MAIN","ST","","04841","C007"],["228","278","E","MAIN","ST","","04856","R003"],["234","292","E","MAIN","ST","","04861","C002"],["240","298","E","MAIN","ST","","04841","C004"],["241","273","O","MAIN","ST","","04841","C004"],["245","267","O","MAIN","ST","","04861","C002"],["275","351","O","MAIN","ST","","04841","C004"],["280","320","E","MAIN","ST","","04856","R003"],["294","300","E","MAIN","ST","","04861","C002"],["300","310","E","MAIN","ST","","04841","C004"],["301","335","O","MAIN","ST","","04861","C002"],["301","389","O","MAIN","ST","","04856","R003"],["302","354","E","MAIN","ST","","04861","C002"],["312","346","E","MAIN","ST","","04841","C004"],["313","313","O","MAIN","ST","","04861","C002"],["315","315","O","MAIN","ST","","04841","C004"],["326","326","E","MAIN","ST","","04861","C002"],["328","328","E","MAIN","ST","","04841","C004"],["331","331","B","MAIN","ST","","04861","C002"],["331","353","O","MAIN","ST","","04861","C002"],["332","390","E","MAIN","ST","","04856","R003"],["348","362","E","MAIN","ST","","04841","C004"],["353","377","O","MAIN","ST","","04841","C004"],["355","389","O","MAIN","ST","","04861","C002"],["356","398","E","MAIN","ST","","04861","C002"],["364","424","E","MAIN","ST","","04841","C004"],["379","419","O","MAIN","ST","","04841","C004"],["387","387","O","MAIN","ST","","04841","C004"],["391","399","O","MAIN","ST","","04861","C002"],["391","439","O","MAIN","ST","","04856","R003"],["392","478","E","MAIN","ST","","04856","R003"],["400","454","E","MAIN","ST","","04861","C002"],["401","497","O","MAIN","ST","","04861","C002"],["406","480","E","MAIN","ST","","04841","C004"],["421","449","O","MAIN","ST","","04841","C004"],["423","423","O","MAIN","ST","","04861","C002"],["441","499","O","MAIN","ST","","04856","R003"],["451","513","O","MAIN","ST","","04841","C004"],["456","496","E","MAIN","ST","","04861","C002"],["464","464","E","MAIN","ST","","04841","C004"],["469","479","O","MAIN","ST","","04841","C004"],["480","598","E","MAIN","ST","","04856","R003"],["482","500","E","MAIN","ST","","04841","C004"],["493","493","O","MAIN","ST","","04841","C004"],["495","499","O","MAIN","ST","","04861","C002"],["498","510","E","MAIN","ST","","04861","C002"],["501","501","O","MAIN","ST","","04841","C004"],["501","529","O","MAIN","ST","","04861","C002"],["501","599","O","MAIN","ST","","04856","R003"],["502","530","E","MAIN","ST","","04841","C004"],["512","530","E","MAIN","ST","","04861","C002"],["515","599","O","MAIN","ST","","04841","C004"],["532","608","E","MAIN","ST","","04841","C004"],["601","799","O","MAIN","ST","","04841","C003"],["610","798","E","MAIN","ST","","04841","C003"],["1","31","O","MAIN","ST","","04841","C002"],["2","16","E","MAIN","ST","","04841","C004"],["18","36","E","MAIN","ST","","04841","C002"],["33","129","O","MAIN","ST","","04841","C003"],["38","130","E","MAIN","ST","","04841","C003"],["131","199","B","MAIN","ST","","04841","C001"],["1","239","O","MAIN","ST","","04841","C004"],["2","194","E","MAIN","ST","","04841","C004"],["196","238","E","MAIN","ST","","04841","C007"],["1","52","B","MAIN ST","MALL","","04861","C002"],["1","199","B","MAKERS COVE","RD","","04854","H032"],["1","99","B","MALACHI","WAY","","04856","R001"],["1","27","O","MAPLE","ST","","04841","C004"],["1","99","O","MAPLE","ST","","04856","R003"],["2","26","E","MAPLE","ST","","04841","C004"],["2","98","E","MAPLE","ST","","04856","R003"],["23","35","O","MAPLE","ST","","04841","C004"],["28","98","E","MAPLE","ST","","04841","C004"],["1","99","B","MARINE","ST","","04841","C007"],["1","99","B","MARKS","LN","","04841","C007"],["1","99","B","MARSH","RD","","04861","C006"],["1","199","B","MASONIC","ST","","04841","C009"],["1","99","B","MAURICE","AVE","","04861","C002"],["1","299","O","MAVERICK","ST","","04841","C001"],["2","44","E","MAVERICK","ST","","04841","C001"],["46","110","E","MAVERICK","ST","","04841","C003"],["112","298","E","MAVERICK","ST","","04841","C001"],["1","99","B","MCLOON WHARF","","","04841","C004"],["1","99","B","MCLOUD","ST","","04841","C007"],["1","199","B","MEADOW","ST","","04856","R001"],["200","299","B","MEADOW","ST","","04856","R002"],["1","15","B","MEADOW","WAY","","04841","C002"],["1","85","O","MEADOW","RD","","04841","R005"],["1","99","O","MEADOW","RD","","04861","R011"],["2","32","E","MEADOW","RD","","04841","R005"],["2","82","E","MEADOW","RD","","04861","R011"],["34","110","E","MEADOW","RD","","04841","R005"],["84","120","E","MEADOW","RD","","04861","R011"],["87","185","O","MEADOW","RD","","04841","R005"],["101","189","O","MEADOW","RD","","04861","R011"],["112","184","E","MEADOW","RD","","04841","R005"],["122","188","E","MEADOW","RD","","04861","R011"],["186","298","E","MEADOW","RD","","04841","R005"],["187","299","O","MEADOW","RD","","04841","R005"],["190","998","E","MEADOW","RD","","04861","R011"],["191","319","O","MEADOW","RD","","04861","R011"],["1","99","B","MEADOW BROOK","LN","","04854","H032"],["1","99","O","MECHANIC","ST","","04856","R003"],["1","99","O","MECHANIC","ST","","04861","C001"],["1","99","O","MECHANIC","ST","","04841","C007"],["2","12","E","MECHANIC","ST","","04861","C001"],["2","18","E","MECHANIC","ST","","04856","R003"],["2","84","E","MECHANIC","ST","","04841","C007"],["14","98","E","MECHANIC","ST","","04861","C001"],["20","98","E","MECHANIC","ST","","04856","R003"],["25","25","O","MECHANIC","ST","","04841","C007"],["86","98","E","MECHANIC","ST","","04841","C007"],["1","99","B","MELROSE","CIR","N","04841","C003"],["1","99","B","MELROSE","CIR","S","04841","C003"],["1","99","B","MERRILL","DR","","04841","C007"],["1","99","B","MERRILL","LN","","04861","R011"],["1","99","B","MERRY","ST","","04841","R005"],["1","99","B","MICHELLE","LN","","04856","R002"],["1","399","O","MILL","ST","","04856","R001"],["2","58","E","MILL","ST","","04856","R001"],["2","98","E","MILL","ST","","04841","R005"],["34","398","E","MILL","ST","","04856","R001"],["1","99","B","MILLER FARM","","","04856","R003"],["1","99","B","MIMILOU","WAY","","04854","H032"],["1","99","B","MINISTERIAL","RD","","04856","R002"],["1","99","B","MIRROR LAKE","LN","","04856","R001"],["1","299","B","MISTIC","AVE","","04856","R003"],["1","99","B","MISTY RIDGE","DR","","04856","R001"],["1","99","B","MITCHELL","LN","","04861","R011"],["1","99","B","MONTGOMERY","LN","","04854","H032"],["1","99","B","MOODY","DR","","04861","R004"],["1","99","B","MORAN","DR","","04841","C007"],["1","799","B","MOUNT PLEASANT","ST","","04856","R001"],["1","99","B","MOUNTAIN","RD","","04841","R005"],["1","99","B","MOUNTAIN VIEW","DR","","04841","R005"],["1","99","B","MOUNTAIN VIEW","EXT","","04841","R005"],["1","99","B","MOUNTAIN VIEW","ST","","04856","R003"],["1","99","B","MUSEUM","ST","","04841","C004"],["100","199","B","MUSEUM","ST","","04854","R777"],["1","99","B","MUSSEL RIDGE","LN","","04854","H032"],["1","99","B","MYRTLE","ST","","04841","C004"],["1","99","B","NATALIE","CT","","04861","R011"],["1","99","B","NELSON","LN","","04856","R002"],["1","18","B","NEVELSON","ST","","04841","C002"],["1","11","O","NEW COUNTY","RD","","04861","C006"],["1","79","O","NEW COUNTY","RD","","04841","C006"],["2","18","E","NEW COUNTY","RD","","04861","C006"],["2","58","E","NEW COUNTY","RD","","04841","C006"],["13","39","O","NEW COUNTY","RD","","04861","C006"],["20","38","E","NEW COUNTY","RD","","04861","C006"],["40","98","E","NEW COUNTY","RD","","04861","R004"],["41","99","O","NEW COUNTY","RD","","04861","R004"],["60","146","E","NEW COUNTY","RD","","04841","C006"],["81","145","O","NEW COUNTY","RD","","04841","C006"],["100","160","E","NEW COUNTY","RD","","04861","R004"],["101","159","O","NEW COUNTY","RD","","04861","R004"],["147","199","O","NEW COUNTY","RD","","04841","R005"],["148","198","E","NEW COUNTY","RD","","04841","R005"],["161","221","O","NEW COUNTY","RD","","04861","R004"],["162","222","E","NEW COUNTY","RD","","04861","R004"],["1","99","B","NEWMAN","LN","","04861","C002"],["1","19","O","NORTH","ST","","04861","C002"],["1","99","O","NORTH","ST","","04841","C007"],["2","20","E","NORTH","ST","","04861","C002"],["2","98","E","NORTH","ST","","04841","C007"],["1","99","B","NUTMEG","LN","","04861","R011"],["1","99","B","OAK","RUN","","04854","H032"],["1","99","B","OAK","ST","","04841","C004"],["1","99","B","OCEAN","AVE","","04854","H032"],["1","99","B","OCEAN","ST","","04841","C007"],["1","99","B","OCEANVIEW","LN","","04856","R002"],["1","45","O","OLD COUNTY","RD","","04861","C006"],["1","59","O","OLD COUNTY","RD","","04841","R005"],["1","61","O","OLD COUNTY","RD","","04856","R002"],["2","8","E","OLD COUNTY","RD","","04861","C006"],["2","60","E","OLD COUNTY","RD","","04841","R005"],["2","72","E","OLD COUNTY","RD","","04856","R002"],["10","44","E","OLD COUNTY","RD","","04861","C006"],["46","72","E","OLD COUNTY","RD","","04861","R004"],["47","99","O","OLD COUNTY","RD","","04861","R004"],["61","239","O","OLD COUNTY","RD","","04841","R005"],["62","174","E","OLD COUNTY","RD","","04841","R005"],["63","169","O","OLD COUNTY","RD","","04856","R002"],["64","80","E","OLD COUNTY","RD","","04861","R004"],["74","198","E","OLD COUNTY","RD","","04856","R002"],["82","186","E","OLD COUNTY","RD","","04861","R004"],["101","199","O","OLD COUNTY","RD","","04861","R004"],["171","299","O","OLD COUNTY","RD","","04856","R002"],["176","276","E","OLD COUNTY","RD","","04841","R005"],["188","298","E","OLD COUNTY","RD","","04861","R004"],["200","298","E","OLD COUNTY","RD","","04856","R002"],["201","299","O","OLD COUNTY","RD","","04861","R004"],["241","303","O","OLD COUNTY","RD","","04841","R005"],["278","332","E","OLD COUNTY","RD","","04841","R005"],["300","372","E","OLD COUNTY","RD","","04861","R004"],["301","313","O","OLD COUNTY","RD","","04861","R004"],["305","339","O","OLD COUNTY","RD","","04841","R005"],["315","373","O","OLD COUNTY","RD","","04861","R004"],["334","342","E","OLD COUNTY","RD","","04841","R005"],["341","485","O","OLD COUNTY","RD","","04841","C002"],["344","536","E","OLD COUNTY","RD","","04841","C002"],["487","499","O","OLD COUNTY","RD","","04841","C003"],["501","529","O","OLD COUNTY","RD","","04841","C002"],["531","599","O","OLD COUNTY","RD","","04841","C001"],["538","598","E","OLD COUNTY","RD","","04841","C001"],["600","799","B","OLD COUNTY","RD","","04841","R005"],["1","60","B","OLD NUTT FARM","RD","","04856","R001"],["1","199","B","OLD ROCKLAND","ST","","04856","R001"],["1","99","B","OLIVER","ST","","04841","C006"],["1","99","B","OLIVER WOODS","","N","04841","C006"],["1","99","B","OLIVER WOODS","","S","04841","C006"],["1","99","B","OLYMPIC","AVE","","04841","C001"],["1","99","B","ORANGE","ST","","04841","C006"],["1","99","B","ORCHARD","ST","","04841","C002"],["1","99","B","ORCHARD","WAY","","04856","R003"],["1","99","B","ORIENT","ST","","04841","C004"],["1","99","B","OSPREY","LN","","04854","H032"],["1","99","B","OTIS","ST","","04841","C007"],["1","99","B","OWLS HEAD","LN","","04854","H032"],["1","124","B","OYSTER RIVER","RD","","04861","R011"],["1","99","B","PACIFIC","ST","","04841","C007"],["1","99","B","PANDION","LN","","04856","R002"],["1","99","B","PARK","DR","","04841","C004"],["1","33","O","PARK","ST","","04841","C004"],["2","2","E","PARK","ST","","04841","C004"],["2","98","E","PARK","ST","","04856","R003"],["4","28","E","PARK","ST","","04841","C004"],["30","100","E","PARK","ST","","04841","C006"],["35","95","O","PARK","ST","","04841","C006"],["61","61","O","PARK","ST","","04841","C006"],["89","89","O","PARK","ST","","04841","C006"],["89","141","O","PARK","ST","","04856","R003"],["97","169","O","PARK","ST","","04841","C006"],["100","140","E","PARK","ST","","04856","R003"],["102","144","E","PARK","ST","","04841","C006"],["140A","140B","B","PARK","ST","","04856","R003"],["140C","140C","E","PARK","ST","","04856","R003"],["142","216","E","PARK","ST","","04856","R003"],["143","217","O","PARK","ST","","04856","R003"],["146","234","E","PARK","ST","","04841","C006"],["147","261","O","PARK","ST","","04841","C006"],["218","272","E","PARK","ST","","04856","R002"],["219","273","O","PARK","ST","","04856","R002"],["236","280","E","PARK","ST","","04841","C006"],["263","311","O","PARK","ST","","04841","C006"],["274","278","E","PARK","ST","","04856","R002"],["275","275","O","PARK","ST","","04856","R002"],["277","277","O","PARK","ST","","04841","C006"],["277","279","O","PARK","ST","","04856","R003"],["279","281","O","PARK","ST","","04841","C006"],["280","298","E","PARK","ST","","04856","R003"],["281","299","O","PARK","ST","","04856","R002"],["282","310","E","PARK","ST","","04841","C006"],["283","285","O","PARK","ST","","04841","C006"],["300","398","E","PARK","ST","","04856","R002"],["301","399","O","PARK","ST","","04856","R002"],["312","398","E","PARK","ST","","04841","R005"],["313","399","O","PARK","ST","","04841","R005"],["400","699","B","PARK","ST","","04856","R002"],["1","199","B","PASCAL","AVE","","04856","R003"],["1","99","B","PATTYS","CIR","","04856","R001"],["1","25","B","PAYNE","AVE","","04841","C006"],["27","99","B","PAYNE","AVE","","04841","R005"],["1","99","B","PAYSON","LN","","04841","C007"],["1","99","B","PEAQUOT","LN","","04854","H032"],["1","99","B","PEN BAY","AVE","","04841","C001"],["1","99","B","PERRY","ST","","04841","C001"],["1","99","B","PHEASANT","DR","","04841","R005"],["1","44","B","PHEASANT","LN","","04854","H032"],["1","99","B","PHILBRICK","AVE","","04841","C001"],["2","50","B","PHILBRICK COMMON","RD","","04841","C001"],["1","99","B","PHILLIPS","ST","","04841","C004"],["1","15","O","PINE","ST","","04841","C003"],["1","17","O","PINE","ST","","04861","C001"],["1","99","O","PINE","ST","","04856","R003"],["2","14","E","PINE","ST","","04841","C003"],["2","18","E","PINE","ST","","04861","C001"],["2","98","E","PINE","ST","","04856","R003"],["3","9","O","PINE","ST","","04861","C001"],["16","98","E","PINE","ST","","04841","C003"],["17","99","O","PINE","ST","","04841","C003"],["19","39","O","PINE","ST","","04861","C001"],["20","40","E","PINE","ST","","04861","C001"],["1","99","B","PINE BRAE","LN","","04856","R001"],["301","399","B","PINE RIDGE","DR","","04861","R011"],["1","99","B","PINEWOOD","LN","","04856","R002"],["1","99","B","PINNACLE","DR","","04856","R002"],["1","9","O","PLEASANT","ST","","04856","R003"],["1","15","O","PLEASANT","ST","","04841","C007"],["2","26","E","PLEASANT","ST","","04841","C007"],["2","98","E","PLEASANT","ST","","04856","R003"],["11","99","O","PLEASANT","ST","","04856","R003"],["15","15","O","PLEASANT","ST","","04841","C007"],["17","189","O","PLEASANT","ST","","04841","C006"],["28","190","E","PLEASANT","ST","","04841","C006"],["191","407","O","PLEASANT","ST","","04841","R005"],["192","332","E","PLEASANT","ST","","04841","R005"],["334","398","E","PLEASANT","ST","","04841","C007"],["341","431","O","PLEASANT","ST","","04861","R004"],["342","432","E","PLEASANT","ST","","04861","R004"],["409","499","O","PLEASANT","ST","","04841","R005"],["1","99","B","POINT VIEW","LN","","04854","H032"],["1","99","B","POKEY NOTCH","","","04856","R003"],["1","99","B","POLICE","PLZ","","04841","C004"],["1","99","B","PORCUPINE RIDGE","RD","","04861","R011"],["1","199","B","PORTER","ST","","04856","R001"],["1","99","B","POST","LN","","04854","H032"],["1","99","B","POWERHOUSE HILL","LN","","04856","R002"],["1","99","B","PRESCOTT","ST","","04841","C006"],["1","99","B","PRIMROSE","LN","","04854","H032"],["1","99","B","PROSPECT","ST","","04841","C006"],["1","99","B","PUBLIC","LDG","","04861","C001"],["1","20","B","PUBLIC SERVICES","WAY","","04841","R005"],["1","99","B","PUMPKIN","WAY","","04856","R001"],["1","99","B","PURCHASE","ST","","04841","C007"],["1","99","B","QUARRY","TRL","","04841","R005"],["1","99","B","RACHELS","RD","","04856","R003"],["1","99","B","RAILROAD","AVE","","04841","C006"],["1","17","O","RANKIN","ST","","04841","C004"],["2","24","E","RANKIN","ST","","04841","C004"],["19","299","O","RANKIN","ST","","04841","C002"],["26","298","E","RANKIN","ST","","04841","C002"],["134A","134A","E","RANKIN","ST","","04841","C002"],["1","99","B","RED OAK","DR","","04856","R001"],["1","99","B","REFLECTION POND","DR","","04856","R002"],["1","99","B","RIDGE","RD","","04856","R002"],["1","52","B","RIDGEVIEW","DR","","04861","C002"],["1","99","B","RIVERSIDE","ST","","04861","C006"],["1","99","B","RIVERWOOD","DR","","04841","C002"],["1","99","B","ROBBINS","LN","","04861","C002"],["1","99","B","ROBERTS","LN","","04854","H032"],["1","99","B","ROBINSON","DR","","04856","R001"],["1","99","B","ROBINSON","ST","","04841","C007"],["1","99","B","ROC CREST","DR","","04856","R003"],["1","99","B","ROCK HILL","LN","","04854","H032"],["1","99","B","ROCK RIDGE","RD","","04856","R002"],["1","99","B","ROCKAWAY","RD","","04854","H032"],["1","99","B","ROCKING MOON","LN","","04854","H032"],["1","99","O","ROCKLAND","ST","","04841","C003"],["1","143","O","ROCKLAND","ST","","04856","R001"],["2","98","E","ROCKLAND","ST","","04841","C003"],["2","112","E","ROCKLAND","ST","","04856","R001"],["18","22","E","ROCKLAND","ST","","04841","C003"],["23","23","O","ROCKLAND","ST","","04841","C003"],["114","640","E","ROCKLAND","ST","","04856","R001"],["145","1299","O","ROCKLAND","ST","","04856","R001"],["642","642","E","ROCKLAND","ST","","04856","R000"],["644","1298","E","ROCKLAND","ST","","04856","R001"],["1","99","B","ROCKPORT","SHRS","","04856","R002"],["1","99","B","ROCKPORT LEDGES","","","04856","R002"],["1","99","B","ROCKPORT PARK","CTR","","04856","R003"],["1","99","B","ROCKPORT WOODS","","","04856","R003"],["1","335","O","ROCKVILLE","ST","","04856","R002"],["2","348","E","ROCKVILLE","ST","","04856","R002"],["337","399","O","ROCKVILLE","ST","","04856","R001"],["350","398","E","ROCKVILLE","ST","","04856","R001"],["1","50","B","ROCKY POND","WAY","","04856","R001"],["1","99","B","ROCKYHILL","AVE","","04841","C001"],["1","99","B","ROLLING","MDWS","E","04856","R001"],["1","99","B","ROLLING","MDWS","W","04856","R001"],["1","99","B","ROLLINS","LN","","04856","R001"],["1","99","B","ROMAHA TRAILER","PARK","","04856","R003"],["1","99","B","ROSE","LN","","04861","R011"],["1","99","B","ROSEHILL","AVE","","04854","H032"],["1","90","B","ROSS","AVE","","04861","R011"],["6","59","B","ROSS","LN","","04854","H032"],["1","54","B","ROXBURY","ST","","04861","C001"],["1","199","B","ROXMONT","RD","","04856","R003"],["1","99","B","RUGOSA","LN","","04854","H032"],["1","199","B","RUSSELL","AVE","","04856","R003"],["1","99","B","RUSSELL AND ALICE","LN","","04854","H032"],["1","99","B","SAGE","WAY","","04856","R001"],["1","99","B","SAMOSET","RD","","04841","C001"],["1","99","B","SANBORN","LN","","04861","R011"],["1","99","B","SAWMILL","LN","","04861","R011"],["1","99","B","SAWYER","ST","","04861","C002"],["1","9","O","SCHOOL","ST","","04856","R003"],["1","17","O","SCHOOL","ST","","04841","C004"],["1","23","O","SCHOOL","ST","","04861","C001"],["2","12","E","SCHOOL","ST","","04856","R003"],["2","24","E","SCHOOL","ST","","04861","C001"],["2","98","E","SCHOOL","ST","","04841","C004"],["11","99","O","SCHOOL","ST","","04856","R003"],["14","14","E","SCHOOL","ST","","04841","C004"],["14","98","E","SCHOOL","ST","","04856","R003"],["19","99","O","SCHOOL","ST","","04841","C004"],["30","30","E","SCHOOL","ST","","04841","C004"],["1","99","B","SCHOONER","DR","","04841","C001"],["1","99","B","SCHOONER BAY","AVE","","04854","H032"],["1","99","B","SCOTT","RD","","04856","R001"],["1","99","B","SCOTT","ST","","04841","C007"],["1","99","B","SEA","ST","","04856","R003"],["1","20","B","SEA BREEZE","LOOP","","04854","H032"],["1","99","B","SEA LIGHT","LN","","04856","R002"],["1","99","B","SEA STREET","PL","","04841","C004"],["1","99","B","SEA VIEW","DR","","04854","H032"],["1","99","B","SEAPORT","DR","","04856","R003"],["1","99","B","SEAVEY","LN","","04841","C007"],["1","22","B","SECOND","ST","","04841","C006"],["1","99","B","SERENITY","LN","","04861","R011"],["1","99","B","SHADYNOOK","LN","","04854","H032"],["1","24","B","SHAW","AVE","","04841","C006"],["25","99","O","SHAW","AVE","","04841","C002"],["26","98","E","SHAW","AVE","","04841","C004"],["1","99","B","SHEARMANS","LN","","04854","H032"],["1","99","B","SHEPARD","DR","","04861","R004"],["1","99","B","SHERER","LN","","04841","R005"],["1","99","B","SHIBLES","LN","","04861","C002"],["1","99","O","SHIBLES","LN","","04856","R001"],["2","98","E","SHIBLES","LN","","04856","R001"],["1","53","O","SHIP","ST","","04861","C002"],["1","99","O","SHIP","ST","","04856","R003"],["2","14","E","SHIP","ST","","04861","C002"],["2","98","E","SHIP","ST","","04856","R003"],["16","54","E","SHIP","ST","","04861","C002"],["1","99","B","SHIP ST","CIR","","04861","C002"],["1","599","B","SHORE","DR","","04854","H032"],["1","599","B","SHORE","DR","","04854","H032"],["1","99","B","SHORE WOODS","","","04854","H032"],["1","99","B","SHORE WOODS","PL","","04854","H032"],["1","99","B","SIMMONS","RD","","04856","R003"],["1","99","B","SIMMONS","ST","","04841","C003"],["1","99","B","SMALLS","LN","","04854","H032"],["1","99","B","SMITHS","LN","","04854","H032"],["1","50","B","SOME","WAY","","04856","R003"],["1","19","O","SOUTH","ST","","04841","C007"],["2","18","E","SOUTH","ST","","04841","C007"],["2","28","E","SOUTH","ST","","04856","R003"],["19","129","O","SOUTH","ST","","04856","R003"],["20","98","E","SOUTH","ST","","04841","C007"],["21","99","O","SOUTH","ST","","04841","C007"],["30","220","E","SOUTH","ST","","04856","R003"],["149","303","O","SOUTH","ST","","04856","R003"],["222","276","E","SOUTH","ST","","04856","R002"],["280","598","E","SOUTH","ST","","04856","R001"],["305","599","O","SOUTH","ST","","04856","R001"],["1","99","B","SOUTHERN","DR","","04841","C002"],["1","99","B","SPAULDING","IS","","04854","H032"],["1","99","B","SPEAR","ST","","04856","R003"],["1","199","B","SPRING","LN","","04856","R001"],["1","99","B","SPRING LANE","EXT","","04841","R005"],["1","99","B","SPRING MOUNTAIN","DR","","04856","R002"],["1","99","B","SPRINGBROOK","WAY","","04856","R002"],["1","99","B","SPRINGER","LN","","04854","H032"],["1","99","B","SPRUCE","LN","","04854","H032"],["1","17","O","SPRUCE","ST","","04856","R003"],["1","99","O","SPRUCE","ST","","04841","C003"],["2","26","E","SPRUCE","ST","","04856","R003"],["2","98","E","SPRUCE","ST","","04841","C003"],["19","99","O","SPRUCE","ST","","04856","R003"],["28","98","E","SPRUCE","ST","","04856","R003"],["1","99","B","SQUIGGLE HOLLOW","LN","","04841","R005"],["1","99","B","STAMBAUGH","DR","","04861","R011"],["1","99","B","STANLEY","AVE","","04841","C003"],["1","12","B","STAR","ST","","04861","C002"],["1","99","B","STATE","ST","","04841","C007"],["1","99","B","STELLAR BLOSSOM","WAY","","04854","H032"],["1","22","B","STONE","ALY","","04861","C002"],["1","99","B","STONEHURST","","","04854","H032"],["1","99","B","STONEHURST","LN","","04854","H032"],["1","50","B","STONEWOOD","RD","","04841","C002"],["1","99","B","STONEY BROOK","LN","","04861","C006"],["1","99","B","STONEY HILL","RD","","04856","R001"],["1","99","B","STRAWBERRY","LN","","04856","R003"],["1","299","B","STREET","EXT","","04856","R001"],["1","99","B","STUDLEY","LN","","04861","R011"],["1","99","B","SUFFOLK","ST","","04841","C007"],["1","99","B","SUMAC","DR","","04854","H032"],["1","7","O","SUMMER","ST","","04856","R003"],["1","23","O","SUMMER","ST","","04841","C004"],["2","22","E","SUMMER","ST","","04841","C004"],["2","98","E","SUMMER","ST","","04856","R003"],["8","8","E","SUMMER","ST","","04841","C004"],["9","15","O","SUMMER","ST","","04856","R003"],["10","10","E","SUMMER","ST","","04856","R003"],["15","199","O","SUMMER","ST","","04841","C004"],["16","198","E","SUMMER","ST","","04841","C004"],["1","99","B","SUMMIT","AVE","","04841","C001"],["1","99","B","SUNRISE","SMT","","04841","R005"],["1","99","B","SUNRISE","TER","","04861","R011"],["1","99","B","SUNSET","ST","","04861","R011"],["1","99","B","SUNSET","TER","","04841","C006"],["1","99","B","SWEETLAND","ST","","04841","C002"],["1","13","B","SYLVAN","RD","","04861","C002"],["1","22","B","TALBOT","AVE","","04841","C004"],["23","221","B","TALBOT","AVE","","04841","C002"],["222","399","B","TALBOT","AVE","","04841","R005"],["1","99","B","TALBOT","LN","","04861","R011"],["1","99","B","TEA","ST","","04841","C002"],["1","99","B","TEMPLE","ST","","04841","C003"],["1","99","B","TERMINAL","LN","","04854","H032"],["1","99","B","TERRATINE","LN","","04854","H032"],["1","99","B","TERRIER","CIR","","04856","R002"],["1","99","B","THATCHER","ST","","04861","C001"],["23","37","B","THIRD","ST","","04841","C006"],["1","14","B","THOMAS","AVE","","04861","C002"],["1","41","O","THOMASTON","ST","","04841","C007"],["1","69","O","THOMASTON","ST","","04861","R004"],["2","20","E","THOMASTON","ST","","04841","C007"],["2","98","E","THOMASTON","ST","","04861","R004"],["22","126","E","THOMASTON","ST","","04841","C007"],["43","125","O","THOMASTON","ST","","04841","C007"],["71","99","O","THOMASTON","ST","","04861","R004"],["72","72","B","THOMASTON","ST","","04841","C007"],["72","72","E","THOMASTON","ST","","04841","C007"],["100","152","E","THOMASTON","ST","","04861","R004"],["101","151","O","THOMASTON","ST","","04861","R004"],["127","299","O","THOMASTON","ST","","04841","R005"],["128","298","E","THOMASTON","ST","","04841","R005"],["1","99","B","THOMASTON COMMONS","WAY","","04861","R004"],["1","99","B","THOMPSON MEADOW","RD","","04841","R005"],["1","99","B","THORNDIKE","LOOP","","04841","C004"],["1","199","B","TILLSON","AVE","","04841","C004"],["1","99","B","TOLL BRIDGE","RD","","04861","R011"],["1","99","B","TOLMAN","LN","","04856","R001"],["1","99","B","TOLMAN","RD","","04841","R005"],["1","99","B","TOPPI","LN","","04854","H032"],["1","99","B","TOWN CLERKS","RD","","04854","H032"],["1","99","B","TOYBOX","LN","","04854","H032"],["2","98","B","TRAILS END","","","04856","R001"],["1","99","B","TRANQUILITY","WAY","","04856","R001"],["1","99","B","TRAVERSE","ST","","04841","C002"],["1","99","B","TREASURE ISLAND","LN","","04854","H032"],["1","99","B","TREK","DR","","04841","R005"],["1","99","B","TRINITY","ST","","04841","C001"],["1","99","B","TWO FOX FARM","DR","","04861","C002"],["1","99","B","ULMER","ST","","04841","C006"],["1","99","B","UNION","LN","","04841","C004"],["1","11","O","UNION","ST","","04841","C004"],["1","99","O","UNION","ST","","04856","R003"],["2","20","E","UNION","ST","","04841","C004"],["2","52","E","UNION","ST","","04856","R003"],["11","21","O","UNION","ST","","04841","C004"],["18","18","B","UNION","ST","","04841","C004"],["18","62","E","UNION","ST","","04841","C004"],["23","119","O","UNION","ST","","04841","C004"],["54","98","E","UNION","ST","","04856","R003"],["64","102","E","UNION","ST","","04841","C004"],["100","198","E","UNION","ST","","04856","R003"],["101","181","O","UNION","ST","","04856","R003"],["104","138","E","UNION","ST","","04841","C004"],["121","133","O","UNION","ST","","04841","C002"],["135","151","O","UNION","ST","","04841","C004"],["140","198","E","UNION","ST","","04841","C002"],["153","199","O","UNION","ST","","04841","C002"],["173","221","O","UNION","ST","","04856","R003"],["200","298","E","UNION","ST","","04856","R003"],["223","223","O","UNION","ST","","04856","C000"],["223","223","O","UNION","ST","","04856","C770"],["225","299","O","UNION","ST","","04856","R003"],["1","99","B","UPHAM","LN","","04856","R002"],["1","84","B","VALLEY","ST","","04861","C002"],["1","99","B","VALLEY AIR","WAY","","04841","R005"],["1","99","B","VALLEY VIEW","ST","","04841","C007"],["1","99","B","VIENOS","RUN","","04841","C002"],["1","99","B","VILLAGE","WAY","","04856","R002"],["1","499","B","VINAL","ST","","04856","R001"],["1","99","B","WADSWORTH","CT","","04861","C001"],["1","86","B","WADSWORTH","ST","","04861","C001"],["1","199","B","WALDO","AVE","","04841","C001"],["1","99","O","WALKER","PL","","04841","C004"],["2","98","E","WALKER","PL","","04841","C002"],["1","99","B","WALNUT","ST","","04841","C006"],["1","99","B","WARREN","ST","","04841","C003"],["1","299","B","WARRENTON","ST","","04856","R002"],["1","99","B","WASHINGTON","ST","","04841","C001"],["1","9","O","WATER","ST","","04841","C007"],["1","43","O","WATER","ST","","04861","C001"],["2","6","E","WATER","ST","","04861","C001"],["2","98","E","WATER","ST","","04841","C007"],["8","86","E","WATER","ST","","04861","C001"],["11","99","O","WATER","ST","","04841","C007"],["12","12","E","WATER","ST","","04841","C007"],["45","85","O","WATER","ST","","04861","C001"],["1","99","B","WATERS EDGE","LN","","04854","H032"],["1","72","B","WATTS","LN","","04861","C002"],["1","199","B","WEEKS","RD","","04854","H032"],["1","99","B","WEEKS","ST","","04841","C004"],["1","99","B","WELLINGTON","DR","","04856","R002"],["1","20","B","WELLNESS","DR","","04856","R002"],["1","210","B","WESKEAG","RD","","04854","H032"],["1","99","B","WESLEY","LN","","04841","R005"],["1","343","O","WEST","ST","","04856","R003"],["2","206","E","WEST","ST","","04856","R003"],["208","298","E","WEST","ST","","04856","R002"],["300","312","E","WEST","ST","","04856","R003"],["314","376","E","WEST","ST","","04856","R002"],["345","389","O","WEST","ST","","04856","R002"],["378","398","E","WEST","ST","","04856","R003"],["391","999","O","WEST","ST","","04856","R001"],["400","998","E","WEST","ST","","04856","R001"],["1","99","B","WESTON","RD","","04854","H032"],["1","99","B","WESTWOOD","RD","","04856","R002"],["1","99","B","WHARF","ST","","04841","C004"],["1","99","B","WHIP-POOR WILL","RD","","04856","R003"],["1","99","B","WHITE","ST","","04841","C004"],["1","99","B","WHITE PINE","RD","","04861","R011"],["1","99","B","WHITE STONE","LN","","04854","H032"],["1","99","B","WHITE TAIL","DR","","04856","R002"],["1","99","B","WILDWOOD","LN","","04854","H032"],["1","99","O","WILDWOOD","LN","","04856","R002"],["2","98","E","WILDWOOD","LN","","04856","R002"],["1","99","B","WILEYS","LN","","04854","H032"],["1","99","B","WILLIAM KING","ST","","04861","C002"],["1","99","B","WILLOW","LN","","04861","R011"],["1","99","B","WILLOW","LN","","04856","R001"],["1","99","B","WILLOW","ST","","04841","C002"],["1","99","B","WINDING","WAY","","04854","H032"],["1","19","O","WINDING","WAY","","04856","R002"],["2","20","E","WINDING","WAY","","04856","R002"],["1","99","B","WINDSWEPT","WAY","","04854","H032"],["1","49","O","WINTER","ST","","04841","C004"],["1","99","O","WINTER","ST","","04856","R003"],["2","50","E","WINTER","ST","","04841","C004"],["2","98","E","WINTER","ST","","04856","R003"],["51","99","O","WINTER","ST","","04841","C004"],["52","98","E","WINTER","ST","","04841","C004"],["1","99","B","WOODLAND","RD","","04854","H032"],["1","99","O","WOODLAND","RD","","04841","C004"],["2","98","E","WOODLAND","RD","","04841","C004"],["1","99","B","WOODLEDGE","LN","","04861","R011"],["1","99","B","WOODMANS TRAILER","PARK","","04854","H032"],["1","99","B","WOODS","RD","","04854","H032"]];
+
+const CITY={ "04841":"Rockland", "04854":"Owls Head", "04856":"Rockport", "04861":"Thomaston" };
+const CITY2ZIP={ "ROCKLAND":"04841", "OWLS HEAD":"04854", "OWLSHEAD":"04854", "ROCKPORT":"04856", "THOMASTON":"04861" };
+const SUFFIX_WORDS={
+  "STREET":"ST","ST":"ST","ROAD":"RD","RD":"RD","AVENUE":"AVE","AVE":"AVE","LANE":"LN","LN":"LN",
+  "DRIVE":"DR","DR":"DR","COURT":"CT","CT":"CT","CIRCLE":"CIR","CIR":"CIR","TERRACE":"TER","TER":"TER",
+  "PLACE":"PL","PL":"PL","WAY":"WAY","HIGHWAY":"HWY","HWY":"HWY","SQUARE":"SQ","SQ":"SQ","POINT":"PT","PT":"PT",
+  "LOOP":"LOOP","TRAIL":"TRL","TRL":"TRL","EXTENSION":"EXT","EXT":"EXT","HILL":"HL","HL":"HL","HOLLOW":"HOLW",
+  "ALLEY":"ALY","PARK":"PARK","PLAZA":"PLZ","MALL":"MALL","RUN":"RUN","SHORES":"SHRS","SUMMIT":"SMT",
+  "MEADOWS":"MDWS","CENTER":"CTR","ISLAND":"IS","LANDING":"LDG"
+};
+const NUMWORD={ZERO:0,OH:0,O:0,ONE:1,TWO:2,TO:2,TOO:2,THREE:3,FOUR:4,FOR:4,FIVE:5,SIX:6,SEVEN:7,EIGHT:8,ATE:8,NINE:9,
+TEN:10,ELEVEN:11,TWELVE:12,THIRTEEN:13,FOURTEEN:14,FIFTEEN:15,SIXTEEN:16,SEVENTEEN:17,EIGHTEEN:18,NINETEEN:19,
+TWENTY:20,THIRTY:30,FORTY:40,FIFTY:50,SIXTY:60,SEVENTY:70,EIGHTY:80,NINETY:90,HUNDRED:100};
+
+/* ================= INDEX ================= */
+// streetIndex: NAME -> [rows]; also NAME+" "+SUFFIX -> rows
+const byName={};
+DATA.forEach(r=>{
+  const name=r[3];
+  (byName[name]=byName[name]||[]).push(r);
+});
+const allNames=Object.keys(byName).sort();
+
+/* ================= MATCH ENGINE ================= */
+const aliases={}; // heardPhrase -> street name
+
+/* ---- persistence (works on hosted/standalone file; no-op if storage blocked) ---- */
+const LS_ALIAS="schemeCaller.aliases.v1", LS_LOG="schemeCaller.log.v1";
+function lsGet(k){ try{return JSON.parse(localStorage.getItem(k));}catch(_){return null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(_){ } }
+function saveAliases(){ lsSet(LS_ALIAS,aliases); }
+(function loadAliases(){ const a=lsGet(LS_ALIAS); if(a&&typeof a==="object"){ Object.assign(aliases,a); } })();
+
+/* ---- session feedback log ---- */
+let feedLog = lsGet(LS_LOG); if(!Array.isArray(feedLog)) feedLog=[];
+function logEvent(input,result,wrong){
+  feedLog.push({t:Date.now(),input,result,wrong:!!wrong});
+  if(feedLog.length>300)feedLog=feedLog.slice(-300);
+  lsSet(LS_LOG,feedLog);
+}
+
+function lev(a,b){
+  if(a===b)return 0;
+  const m=a.length,n=b.length;
+  if(!m)return n; if(!n)return m;
+  let prev=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++){
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+    prev=cur;
+  }
+  return prev[n];
+}
+function sim(a,b){ const d=lev(a,b); return 1-d/Math.max(a.length,b.length); }
+
+function wordsToNumber(tokens,i){
+  // try to read a number starting at i from words; returns [value,nextIndex] or null
+  let val=null,j=i;
+  while(j<tokens.length && NUMWORD.hasOwnProperty(tokens[j])){
+    const v=NUMWORD[tokens[j]];
+    if(v===100){ val=(val||1)*100; }
+    else if(val===null){ val=v; }
+    else if(val%100===0||((val%100)>=20&&v<10)){ val+=v; }
+    else { val=val*10+v; } // "two one" -> 21 style
+    j++;
+  }
+  return val===null?null:[val,j];
+}
+
+function normalize(text){
+  return text.toUpperCase()
+    .replace(/[.,#]/g," ")
+    .replace(/[^A-Z0-9\- ]/g," ")
+    .replace(/\s+/g," ").trim();
+}
+
+function parseHouseNum(tok){
+  // "21" "20A" "31-33"
+  const m=tok.match(/^(\d+)([A-Z])?(?:-(\d+)([A-Z])?)?$/);
+  if(!m)return null;
+  return {n:parseInt(m[1],10), letter:m[2]||"", n2:m[3]?parseInt(m[3],10):null, raw:tok};
+}
+
+function entryMatchesNumber(entry,h){
+  // entry: lo,hi strings; parity O/E/B
+  const lo=parseHouseNum(entry[0]), hi=parseHouseNum(entry[1]);
+  if(!lo||!hi)return false;
+  const parity=entry[2];
+  // hyphen unit entries like 31-33
+  if(lo.n2!==null){
+    return h.n===lo.n||h.n===lo.n2||(h.n2!==null&&h.n===lo.n&&h.n2===lo.n2);
+  }
+  if(h.n<lo.n||h.n>hi.n)return false;
+  if(parity==="O"&&h.n%2===0)return false;
+  if(parity==="E"&&h.n%2!==0)return false;
+  // letter handling: if entry range is letter-specific exact (e.g. 20A-20A), require letter
+  if(lo.letter&&lo.n===hi.n){
+    return h.n===lo.n && h.letter>=lo.letter && h.letter<=(hi.letter||lo.letter);
+  }
+  return true;
+}
+
+const DIR_WORDS={"NORTH":"N","SOUTH":"S","EAST":"E","WEST":"W","N":"N","S":"S","E":"E","W":"W"};
+function findStreet(words){
+  // words: array AFTER removing number & zip. Try alias first, then exact, then fuzzy.
+  if(!words.length)return null;
+  const phrase=words.join(" ");
+  if(aliases[phrase])return {name:aliases[phrase],score:1,via:"trained"};
+  if(byName[phrase])return {name:phrase,score:1,via:"exact"};
+
+  // peel a trailing direction word (e.g. "BAYSIDE WEST")
+  let base=words.slice(), suffix=null;
+  let last=base[base.length-1];
+  if(DIR_WORDS[last]&&base.length>1&&!byName[base.join(" ")])base=base.slice(0,-1);
+  // peel a trailing suffix word if present
+  last=base[base.length-1];
+  if(SUFFIX_WORDS[last]&&base.length>1){ suffix=SUFFIX_WORDS[last]; base=base.slice(0,-1); }
+  const baseStr=base.join(" ");
+  if(aliases[baseStr])return {name:aliases[baseStr],score:1,via:"trained"};
+  if(byName[baseStr])return {name:baseStr,score:1,via:"exact"};
+
+  let best=null;
+  for(const name of allNames){
+    let s=sim(baseStr,name);
+    // try full phrase too (some names contain suffix-like words e.g. BIRCH STREET PL)
+    s=Math.max(s,sim(phrase,name));
+    // suffix agreement bonus
+    if(suffix&&byName[name].some(r=>r[4]===suffix))s+=0.06;
+    if(!best||s>best.score)best={name,score:s,via:"fuzzy"};
+  }
+  // stricter for short inputs: a 3-4 letter blob can fuzzy-hit almost anything
+  const minScore=baseStr.length<=4?0.99:baseStr.length<=7?0.74:0.7;
+  if(best&&best.score>=minScore)return best;
+  return null;
+}
+
+function parseQuery(raw){
+  const text=normalize(raw);
+  let tokens=text.split(" ");
+  // convert leading number words: "TWENTY ONE LIMEROCK" -> 21
+  if(tokens.length&&NUMWORD.hasOwnProperty(tokens[0])){
+    const r=wordsToNumber(tokens,0);
+    if(r){ tokens=[String(r[0]),...tokens.slice(r[1])]; }
+  }
+  let house=null, zip=null;
+  const rest=[];
+  for(let i=0;i<tokens.length;i++){
+    const t=tokens[i];
+    if(/^\d{5}$/.test(t)&&CITY[t]){ zip=t; continue; }
+    if(house===null){
+      const h=parseHouseNum(t);
+      if(h){ house=h; continue; }
+    }
+    rest.push(t);
+  }
+  // city name spoken instead of zip?
+  let restStr=rest.join(" ");
+  for(const cn in CITY2ZIP){
+    if(restStr.endsWith(" "+cn)||restStr===cn){
+      zip=zip||CITY2ZIP[cn];
+      restStr=restStr.slice(0,restStr.length-cn.length).trim();
+      break;
+    }
+  }
+  return {house,zip,words:restStr?restStr.split(" "):[]};
+}
+
+function routeName(crid){
+  const p=crid[0],n=parseInt(crid.slice(1),10);
+  const kind=p==="C"?"City":p==="R"?"Rural":p==="H"?"Highway":crid;
+  return kind+" "+n;
+}
+
+function lookup(raw){
+  const q=parseQuery(raw);
+  if(!q.words.length)return {status:"miss",msg:"No street name heard",q};
+  const st=findStreet(q.words);
+  if(!st)return {status:"miss",msg:"Street not found: \u201C"+q.words.join(" ")+"\u201D",q};
+  let rows=byName[st.name];
+  // zip filter
+  const zips=[...new Set(rows.map(r=>r[6]))];
+  if(q.zip){ rows=rows.filter(r=>r[6]===q.zip); if(!rows.length)return {status:"miss",msg:st.name+" is not in "+CITY[q.zip]+" ("+q.zip+")",q,street:st.name}; }
+  else if(zips.length>1&&q.house){
+    // could match in several towns — check which towns the number actually hits
+    const hitZips=[...new Set(rows.filter(r=>entryMatchesNumber(r,q.house)).map(r=>r[6]))];
+    if(hitZips.length>1)return {status:"ask",street:st.name,zips:hitZips,q};
+    if(hitZips.length===1)rows=rows.filter(r=>r[6]===hitZips[0]);
+  }
+  if(!q.house){
+    // no number — if entire street is one route, answer anyway
+    const u=[...new Set(rows.map(r=>r[7]+"|"+r[6]))];
+    if(u.length===1){ const r=rows[0]; return {status:"hit",street:st.name,entry:r,alts:[],q,noNum:true}; }
+    return {status:"miss",msg:"Need a house number for "+st.name+" (it splits across routes)",q,street:st.name};
+  }
+  const hits=rows.filter(r=>entryMatchesNumber(r,q.house));
+  if(!hits.length)return {status:"miss",msg:"No range covers "+q.house.raw+" "+st.name,q,street:st.name};
+  // rank: regular routes (num<700) first, narrowest range first
+  const ranked=hits.slice().sort((a,b)=>{
+    const sa=parseInt(a[7].slice(1),10),sb=parseInt(b[7].slice(1),10);
+    const spA=(sa>=700||sa===0)?1:0, spB=(sb>=700||sb===0)?1:0;
+    if(spA!==spB)return spA-spB;
+    const wA=(parseHouseNum(a[1])?.n??0)-(parseHouseNum(a[0])?.n??0);
+    const wB=(parseHouseNum(b[1])?.n??0)-(parseHouseNum(b[0])?.n??0);
+    return wA-wB;
+  });
+  const primary=ranked[0];
+  const seen=new Set([primary[7]+primary[6]]);
+  const alts=[];
+  ranked.slice(1).forEach(r=>{ const k=r[7]+r[6]; if(!seen.has(k)){seen.add(k);alts.push(r);} });
+  return {status:"hit",street:st.name,entry:primary,alts,q,via:st.via};
+}
+
+/* ================= UI: tabs ================= */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll("main section").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById("tab-"+b.dataset.tab).classList.add("on");
+    if(b.dataset.tab==="browse")renderBrowse("");
+  };
+});
+
+/* ================= UI: result ================= */
+const placard=document.getElementById("placard");
+const speakSw=document.getElementById("speakSw");
+let speakOn=true;
+speakSw.onclick=()=>{ speakOn=!speakOn; speakSw.classList.toggle("on",speakOn); speakSw.setAttribute("aria-checked",speakOn); };
+
+function say(text){
+  if(!speakOn||!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=1.05;
+  speechSynthesis.speak(u);
+}
+
+const histArr=[];
+function pushHist(label,route,miss){
+  histArr.unshift({label,route,miss});
+  if(histArr.length>8)histArr.pop();
+  document.getElementById("hist").innerHTML=histArr.map(h=>
+    '<div class="hist-item'+(h.miss?' miss':'')+'"><span>'+h.label+'</span><span class="hr">'+h.route+'</span></div>').join("");
+}
+
+function escapeHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+
+let lastEvent=null; // {input, summary} for the "flag wrong" button
+
+function showResult(res,spokenInput){
+  placard.className="placard show";
+  const route=document.getElementById("plcRoute"),city=document.getElementById("plcCity"),
+        meta=document.getElementById("plcMeta"),crid=document.getElementById("plcCrid"),
+        alt=document.getElementById("plcAlt"),ask=document.getElementById("askChoices"),
+        flag=document.getElementById("flagWrong");
+  alt.style.display="none"; ask.style.display="none"; crid.style.display="block";
+  if(flag){ flag.style.display="none"; flag.textContent="\u2691 This was wrong"; flag.disabled=false; }
+
+  if(res.status==="hit"){
+    const e=res.entry;
+    const rn=routeName(e[7]);
+    route.textContent=rn;
+    city.textContent=CITY[e[6]]+" "+e[6];
+    const rng=e[0]===e[1]?e[0]:(e[0]+"–"+e[1]);
+    const par=e[2]==="O"?"odd":e[2]==="E"?"even":"all";
+    meta.textContent=(res.q.house?res.q.house.raw+" ":"")+res.street+(e[4]?" "+e[4]:"")+" · range "+rng+" ("+par+")"+(res.via==="trained"?" · voice-trained match":"");
+    crid.textContent=e[7];
+    if(res.alts.length){
+      alt.style.display="block";
+      alt.innerHTML="Also listed: "+res.alts.map(a=>"<b>"+routeName(a[7])+"</b> ("+a[7]+", "+a[0]+"–"+a[1]+" "+a[2]+")").join(" · ");
+    }
+    say(rn+", "+CITY[e[6]]);
+    pushHist((res.q.house?res.q.house.raw+" ":"")+res.street,rn,false);
+    lastEvent={input:spokenInput,summary:rn+" / "+CITY[e[6]]+" "+e[6]+" ["+e[7]+"]"};
+    if(flag)flag.style.display="inline-block";
+    logEvent(spokenInput,lastEvent.summary,false);
+  } else if(res.status==="ask"){
+    placard.classList.add("ask");
+    route.textContent="Which town?";
+    city.textContent=res.street;
+    meta.textContent="That address exists in more than one ZIP — tap one or say the address with the town or ZIP.";
+    crid.style.display="none";
+    ask.style.display="flex";
+    ask.innerHTML="";
+    res.zips.forEach(z=>{
+      const b=document.createElement("button");
+      b.textContent=CITY[z]+" "+z;
+      b.onclick=()=>{ const r=lookup(spokenInput+" "+z); showResult(r,spokenInput+" "+z); };
+      ask.appendChild(b);
+    });
+    say("Which town? "+res.zips.map(z=>CITY[z]).join(", or "));
+    lastEvent=null;
+  } else {
+    placard.classList.add("miss");
+    route.textContent="No match";
+    city.textContent="";
+    meta.textContent=res.msg+" — heard: \u201C"+spokenInput+"\u201D";
+    crid.style.display="none";
+    say("No match");
+    pushHist(escapeHtml(spokenInput.slice(0,30)),"—",true);
+    lastEvent={input:spokenInput,summary:"NO MATCH ("+res.msg+")"};
+    if(flag){ flag.style.display="inline-block"; flag.textContent="\u2691 Report this miss"; }
+    logEvent(spokenInput,lastEvent.summary,true);
+  }
+}
+
+function runLookup(text){
+  document.getElementById("heard").textContent="\u201C"+text+"\u201D";
+  showResult(lookup(text),text);
+}
+
+/* ================= SPEECH RECOGNITION ================= */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,listening=false;
+const micBtn=document.getElementById("micBtn"),micState=document.getElementById("micState");
+if(!SR){ document.getElementById("nosr").style.display="block"; micBtn.disabled=true; micBtn.style.opacity=.4; }
+
+function pickBestAlt(result){
+  // try each alternative; prefer the first that resolves to a real street
+  let chosen=result[0].transcript;
+  for(let i=0;i<result.length;i++){
+    const t=result[i].transcript;
+    const r=lookup(t);
+    if(r.status==="hit"||r.status==="ask"){ return t; }
+  }
+  return chosen;
+}
+
+function buildRec(){
+  const r=new SR();
+  r.lang="en-US"; r.continuous=true; r.interimResults=true; r.maxAlternatives=4;
+  r.onresult=e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      if(res.isFinal){ runLookup(pickBestAlt(res).trim()); }
+      else interim+=res[0].transcript;
+    }
+    if(interim)document.getElementById("heard").textContent=interim;
+  };
+  r.onend=()=>{ if(listening){ try{r.start();}catch(_){}} else updateMicUI(); };
+  r.onerror=ev=>{
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){ listening=false; micState.textContent="Mic blocked — allow it for this page, then tap again"; updateMicUI(); }
+  };
+  return r;
+}
+function updateMicUI(){
+  micBtn.classList.toggle("live",listening);
+  micState.classList.toggle("live",listening);
+  micState.textContent=listening?"Listening — call out an address":"Tap to listen";
+}
+micBtn.onclick=()=>{
+  if(!SR)return;
+  if(listening){ listening=false; rec&&rec.stop(); updateMicUI(); return; }
+  rec=rec||buildRec();
+  listening=true;
+  try{rec.start();}catch(_){}
+  updateMicUI();
+};
+
+/* typing fallback */
+document.getElementById("typeGo").onclick=()=>{ const v=document.getElementById("typeIn").value.trim(); if(v)runLookup(v); };
+document.getElementById("typeIn").addEventListener("keydown",e=>{ if(e.key==="Enter")document.getElementById("typeGo").click(); });
+
+/* ================= MIC SETUP / LEVEL METER ================= */
+const meterEl=document.getElementById("meter");
+for(let i=0;i<28;i++)meterEl.appendChild(document.createElement("span"));
+const bars=[...meterEl.children];
+let audioCtx=null,meterStream=null,raf=null,metering=false;
+
+document.getElementById("micPerm").onclick=async()=>{
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    s.getTracks().forEach(t=>t.stop());
+    const devs=await navigator.mediaDevices.enumerateDevices();
+    const sel=document.getElementById("micSel");
+    sel.innerHTML="";
+    devs.filter(d=>d.kind==="audioinput").forEach((d,i)=>{
+      const o=document.createElement("option");
+      o.value=d.deviceId; o.textContent=d.label||("Microphone "+(i+1));
+      sel.appendChild(o);
+    });
+    document.getElementById("meterBtn").disabled=false;
+    document.getElementById("meterRead").innerHTML="Microphones found: <b>"+sel.options.length+"</b>. Pick one and start the test.";
+  }catch(err){
+    document.getElementById("meterRead").textContent="Microphone permission was denied — allow it in your browser settings, then try again.";
+  }
+};
+
+document.getElementById("meterBtn").onclick=async function(){
+  if(metering){ stopMeter(); this.textContent="Start level test"; return; }
+  const id=document.getElementById("micSel").value;
+  try{
+    meterStream=await navigator.mediaDevices.getUserMedia({audio:id?{deviceId:{exact:id}}:true});
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==="suspended")await audioCtx.resume();
+    const src=audioCtx.createMediaStreamSource(meterStream);
+    const an=audioCtx.createAnalyser(); an.fftSize=512;
+    src.connect(an);
+    const buf=new Uint8Array(an.frequencyBinCount);
+    metering=true; this.textContent="Stop test";
+    let peak=0;
+    const draw=()=>{
+      if(!metering)return;
+      an.getByteTimeDomainData(buf);
+      let max=0;
+      for(let i=0;i<buf.length;i++){ const v=Math.abs(buf[i]-128)/128; if(v>max)max=v; }
+      peak=Math.max(peak*0.995,max);
+      const lit=Math.round(max*bars.length*1.6);
+      bars.forEach((b,i)=>{
+        b.className=i<lit?("lit"+(i>bars.length*.85?" hot":i>bars.length*.6?" mid":"")):"";
+        b.style.height=(8+(i/bars.length)*92)+"%";
+      });
+      const pct=Math.round(max*100);
+      const verdict=pct<4?"Too quiet — speak up or move the mic closer":pct>85?"Very hot — back off a little":pct>12?"Good level \u2713":"OK — a bit quiet";
+      document.getElementById("meterRead").innerHTML="Level: <b>"+pct+"%</b> · "+verdict;
+      raf=requestAnimationFrame(draw);
+    };
+    draw();
+  }catch(err){
+    document.getElementById("meterRead").textContent="Couldn't open that microphone: "+err.message;
+  }
+};
+function stopMeter(){
+  metering=false;
+  if(raf)cancelAnimationFrame(raf);
+  if(meterStream)meterStream.getTracks().forEach(t=>t.stop());
+  bars.forEach(b=>b.className="");
+}
+
+/* ================= TRAINING ================= */
+// Curated highest-value names: the ones speech engines mangle most.
+// Each represents a distinct phonetic trap (local/French/proper-name/non-word).
+const TRAIN_PRIMARY=["LIMEROCK","BEAUCHAMP","BALLYHAC","ACHORN","ADMONTEM","BELYEA","GILCHREST","SAMOSET"];
+// Reserve, ranked by value; "Add 5 more" pulls the next 5.
+const TRAIN_RESERVE=["MAVERICK","BREWSTER","TALBOT","GARTHGANNON","COMANCOL","CALDERWOOD",
+  "BUTTERMILK","BELVIDERE","BIRCHMONT","PASCAL","MASONIC","ROCKVILLE","DEARBORN","CLARENDON",
+  "BREAKWATER","COMMERCIAL","BROADWAY","PLEASANT","CRESCENT","HAWTHORNE"]
+  .filter(n=>byName[n]); // keep only names actually in the scheme
+const TRAIN_POOL=[...TRAIN_PRIMARY, ...TRAIN_RESERVE].filter(n=>byName[n]);
+
+let trainCount=TRAIN_PRIMARY.length;   // how many of the pool are in the active set
+let runIdx=0, running=false, trainRec=null, stepTimer=null, gotResult=false;
+
+const trainWordEl=document.getElementById("trainWord"),
+      trainResEl=document.getElementById("trainRes"),
+      trainLblEl=document.getElementById("trainLbl"),
+      trainStage=document.getElementById("trainStage"),
+      trainFill=document.getElementById("trainFill"),
+      trainProg=document.getElementById("trainProg"),
+      trainMoreBox=document.getElementById("trainMore"),
+      trainDone=document.getElementById("trainDone");
+
+function updTrainProg(){
+  trainProg.textContent="Set: "+trainCount+" names · learned corrections: "+Object.keys(aliases).length;
+}
+updTrainProg();
+
+
+function setBtns(state){ // 'idle' | 'running' | 'done'
+  document.getElementById("trainStart").style.display = state==="running"?"none":"inline-block";
+  document.getElementById("trainStart").textContent = state==="done"?"Run again":"Start training";
+  document.getElementById("trainSkip").style.display  = state==="running"?"inline-block":"none";
+  document.getElementById("trainStop").style.display  = state==="running"?"inline-block":"none";
+  trainMoreBox.style.display = state==="done"?"block":"none";
+}
+
+document.getElementById("trainStart").onclick=()=>{
+  if(!SR){ trainResEl.innerHTML='<span class="bad">This browser can\u2019t do voice recognition. On iPhone use Safari; on Android/PC use Chrome or Edge.</span>'; return; }
+  // stop the sort mic if it was running
+  listening=false; if(rec){try{rec.stop();}catch(_){}}
+  running=true; runIdx=0; setBtns("running"); trainResEl.innerHTML="";
+  trainStep();
+};
+document.getElementById("trainStop").onclick=()=>stopTraining();
+document.getElementById("trainSkip").onclick=()=>{ if(running){ cleanupStep(); runIdx++; trainStep(); } };
+document.getElementById("trainRedo").onclick=()=>{ document.getElementById("trainStart").click(); };
+document.getElementById("trainAdd5").onclick=()=>{
+  const before=trainCount;
+  trainCount=Math.min(TRAIN_POOL.length, trainCount+5);
+  updTrainProg();
+  if(trainCount===before){ trainDone.textContent="That\u2019s every name in the training pool — "+trainCount+" trained."; return; }
+  // run just the newly added slice
+  running=true; runIdx=before; setBtns("running"); trainResEl.innerHTML="";
+  trainStep();
+};
+
+function cleanupStep(){
+  gotResult=false;
+  if(stepTimer){clearTimeout(stepTimer);stepTimer=null;}
+  if(trainRec){ try{trainRec.onend=null;trainRec.stop();}catch(_){ } trainRec=null; }
+  trainStage.classList.remove("listening");
+}
+
+function stopTraining(){
+  running=false; cleanupStep();
+  trainLblEl.textContent="Stopped"; trainWordEl.textContent="—";
+  setBtns(runIdx>0?"done":"idle");
+  if(runIdx>0)trainDone.textContent="Stopped after "+runIdx+" name"+(runIdx===1?"":"s")+".";
+}
+
+function trainStep(){
+  cleanupStep();
+  if(runIdx>=trainCount){ finishBatch(); return; }
+  const target=TRAIN_POOL[runIdx];
+  trainFill.style.width=Math.round(runIdx/trainCount*100)+"%";
+  trainLblEl.textContent="Say this name out loud";
+  trainWordEl.textContent=target;
+  trainStage.classList.add("listening");
+
+  trainRec=new SR();
+  trainRec.lang="en-US"; trainRec.interimResults=false; trainRec.maxAlternatives=3; trainRec.continuous=false;
+  trainRec.onresult=e=>{
+    let best="";
+    for(let i=0;i<e.results.length;i++) best+=e.results[i][0].transcript;
+    gotResult=true;
+    trainCapture(target, best.trim(), e.results[0]);
+  };
+  trainRec.onerror=ev=>{
+    if(ev.error==="not-allowed"){ running=false; cleanupStep();
+      trainResEl.innerHTML='<span class="bad">Microphone is blocked. Allow mic access for this page, then Start again.</span>';
+      setBtns("idle"); }
+  };
+  trainRec.onend=()=>{
+    if(!running)return;
+    if(!gotResult){ // heard nothing — give one nudge, then move on
+      trainResEl.innerHTML='<span class="bad">Didn\u2019t catch that</span> — speak a bit louder. Skipping to the next.';
+      stepTimer=setTimeout(()=>{ runIdx++; trainStep(); },1100);
+    }
+  };
+  try{ trainRec.start(); }catch(_){ stepTimer=setTimeout(()=>{runIdx++;trainStep();},300); }
+}
+
+function trainCapture(target, text, result){
+  trainStage.classList.remove("listening");
+  // gather alternatives the engine offered
+  const alts=[];
+  if(result){ for(let i=0;i<result.length;i++) alts.push(result[i].transcript); }
+  const directHit=alts.some(a=>{ const f=findStreet(normalize(a).split(" ")); return f&&f.name===target; });
+
+  if(directHit){
+    trainResEl.innerHTML='\u201C'+escapeHtml(text)+'\u201D \u2192 <span class="good">'+target+' \u2713</span> already recognized';
+  }else{
+    // save what the engine actually heard as an alias to the target
+    const words=normalize(text).split(" ").filter(w=>!SUFFIX_WORDS[w]);
+    const key=words.join(" ").trim() || normalize(text);
+    if(key){ aliases[key]=target; saveAliases(); renderAliases(); }
+    trainResEl.innerHTML='\u201C'+escapeHtml(text)+'\u201D \u2192 <span class="bad">learned</span> as <b>'+target+'</b>';
+  }
+  updTrainProg();
+  runIdx++;
+  cleanupStep();
+  if(running) stepTimer=setTimeout(trainStep, 1200);
+}
+
+function finishBatch(){
+  running=false; cleanupStep();
+  trainFill.style.width="100%";
+  trainLblEl.textContent="Done";
+  trainWordEl.textContent="\u2713";
+  const learned=Object.keys(aliases).length;
+  trainDone.textContent="Trained "+trainCount+" names. "+(learned?learned+" correction"+(learned===1?"":"s")+" saved.":"No corrections needed — your voice is matching cleanly.");
+  setBtns("done");
+  if(trainCount>=TRAIN_POOL.length){ document.getElementById("trainAdd5").disabled=true; document.getElementById("trainAdd5").textContent="All training words used"; }
+}
+
+function renderAliases(){
+  const el=document.getElementById("aliasList");
+  const keys=Object.keys(aliases);
+  if(!keys.length){ el.innerHTML='<p class="dim" style="margin-top:8px">None yet.</p>'; return; }
+  el.innerHTML=keys.map(k=>'<div class="alias-item"><span>\u201C'+escapeHtml(k.toLowerCase())+'\u201D \u2192 <b>'+aliases[k]+'</b></span><button data-k="'+escapeHtml(k)+'" aria-label="Delete">\u2715</button></div>').join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{ delete aliases[b.dataset.k]; saveAliases(); renderAliases(); updTrainProg(); });
+}
+
+/* ================= BROWSE ================= */
+function renderBrowse(q){
+  const list=document.getElementById("browseList");
+  const Q=q.toUpperCase();
+  const names=allNames.filter(n=>!Q||n.includes(Q)).slice(0,80);
+  list.innerHTML=names.map(n=>{
+    const rows=byName[n];
+    const det=rows.map(r=>{
+      const par=r[2]==="O"?"odd":r[2]==="E"?"even":"all";
+      return r[0]+"–"+r[1]+" ("+par+") "+(r[4]||"")+" · "+CITY[r[6]]+" "+r[6]+" · <span class=\"crid\">"+routeName(r[7])+" ["+r[7]+"]</span>";
+    }).join("<br>");
+    return '<div class="street-row" data-n="'+n+'"><div class="sr-name">'+n+'</div><div class="sr-det">'+det+'</div></div>';
+  }).join("")||'<p class="dim" style="margin-top:12px">No streets match.</p>';
+  list.querySelectorAll(".street-row").forEach(r=>r.onclick=()=>r.classList.toggle("open"));
+}
+document.getElementById("browseIn").addEventListener("input",e=>renderBrowse(e.target.value));
+
+/* ================= FEEDBACK / SHARE ================= */
+const flagBtn=document.getElementById("flagWrong");
+flagBtn.onclick=()=>{
+  if(!lastEvent)return;
+  // mark the most recent matching log entry as wrong
+  for(let i=feedLog.length-1;i>=0;i--){
+    if(feedLog[i].input===lastEvent.input){ feedLog[i].wrong=true; break; }
+  }
+  lsSet(LS_LOG,feedLog);
+  flagBtn.classList.add("done"); flagBtn.textContent="\u2691 Reported \u2713"; flagBtn.disabled=true;
+  updFeedStat();
+};
+
+function updFeedStat(){
+  const n=feedLog.length, wrong=feedLog.filter(e=>e.wrong).length;
+  const el=document.getElementById("fbStat");
+  if(!n){ el.textContent="No tests recorded yet. Call out a few addresses, flag any that come out wrong, then send your results."; return; }
+  el.innerHTML="This session: <b>"+n+"</b> address"+(n===1?"":"es")+" tested, <b>"+wrong+"</b> flagged as wrong.";
+}
+updFeedStat();
+
+function buildReport(){
+  const dev=navigator.userAgent;
+  const ua=/iP(hone|ad|od)/.test(dev)?"iPhone/iPad":/Android/.test(dev)?"Android":/Mac/.test(dev)?"Mac":/Windows/.test(dev)?"Windows":"Other";
+  const lines=["Scheme Caller — alpha test results","Device: "+ua,"Corrections learned: "+Object.keys(aliases).length,
+    "Tests: "+feedLog.length+" ("+feedLog.filter(e=>e.wrong).length+" flagged wrong)","",
+    "PROBLEMS (flagged or no-match):"];
+  const probs=feedLog.filter(e=>e.wrong);
+  if(!probs.length)lines.push("  (none — everything matched)");
+  else probs.slice(-40).forEach(e=>lines.push("  said \u201C"+e.input+"\u201D \u2192 "+e.result));
+  lines.push("","ALL TESTS (most recent 40):");
+  feedLog.slice(-40).forEach(e=>lines.push("  "+(e.wrong?"\u2717":"\u2713")+" \u201C"+e.input+"\u201D \u2192 "+e.result));
+  return lines.join("\n");
+}
+
+document.getElementById("shareBtn").onclick=async()=>{
+  const note=document.getElementById("shareNote");
+  if(!feedLog.length){ note.style.display="block"; note.textContent="Nothing to send yet — test a few addresses first."; return; }
+  const text=buildReport();
+  if(navigator.share){
+    try{ await navigator.share({title:"Scheme Caller test results",text}); note.style.display="none"; return; }catch(_){ }
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    note.style.display="block"; note.textContent="Copied your results to the clipboard — paste them into a text or email to send them in.";
+  }catch(_){
+    note.style.display="block";
+    note.innerHTML="Copy this and send it in:<br><textarea style='width:100%;height:120px;margin-top:6px;font-family:var(--mono);font-size:12px' readonly>"+escapeHtml(text)+"</textarea>";
+  }
+};
+
+document.getElementById("clearLog").onclick=()=>{
+  feedLog=[]; lsSet(LS_LOG,feedLog); updFeedStat();
+  const note=document.getElementById("shareNote"); note.style.display="block"; note.textContent="Cleared. Corrections you trained are kept.";
+};
+
+/* ================= READINESS CHECK ================= */
+renderAliases();
+(function(){
+  const b=document.getElementById("ready");
+  const secure=window.isSecureContext || location.hostname==="localhost" || location.hostname==="127.0.0.1";
+  const iOS=/iP(hone|ad|od)/.test(navigator.userAgent);
+  if(!SR){
+    b.style.display="block"; b.className="banner bad";
+    b.innerHTML="<b>Voice not available in this browser.</b> On iPhone/iPad open this in <b>Safari</b>; on Android or a PC use <b>Chrome</b> or <b>Edge</b>. You can still type addresses below.";
+  } else if(!secure){
+    b.style.display="block"; b.className="banner warn";
+    b.innerHTML="<b>Mic needs a secure (https) link.</b> Opened from a file or http, phones won\u2019t grant the microphone. Host this page on an https link (any free static host) and the mic turns on. Typing works now either way.";
+  } else {
+    b.style.display="block"; b.className="banner ok";
+    b.innerHTML="<b>Ready.</b> Tap the mic and call out an address."+(iOS?" On iPhone, tap the mic again if it stops after a pause.":"");
+    setTimeout(()=>{ b.style.transition="opacity .6s"; b.style.opacity="0"; setTimeout(()=>b.style.display="none",650); },4500);
+  }
+})();
+</script>
+</body>
+</html>
