@@ -96,6 +96,14 @@ section{display:none}section.on{display:block}
 .train-say.listening .ts-lbl{color:#FFD9D6}
 .train-bar{height:8px;background:var(--line);margin-top:10px;overflow:hidden}
 .train-bar-fill{height:100%;width:0;background:var(--ok);transition:width .3s}
+.mode-pick{display:flex;gap:0;margin-top:12px;border:2px solid var(--ink)}
+.mode-pick button{flex:1;background:#fff;border:none;border-right:2px solid var(--ink);font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:9px 4px;color:var(--mut)}
+.mode-pick button:last-child{border-right:none}
+.mode-pick button.on{background:var(--navy);color:#fff}
+.set-row{display:flex;align-items:center;gap:10px;margin-top:12px}
+.set-lbl{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.count-pick{flex:1}
+.count-pick button{font-size:14px;padding:8px 4px}
 .train-say .ts-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.15em;color:#9DB3CC;text-transform:uppercase}
 .train-say .ts-word{font-family:var(--disp);font-weight:700;font-size:clamp(26px,8vw,40px);letter-spacing:.04em;text-transform:uppercase;margin-top:6px}
 .train-res{font-family:var(--mono);font-size:14px;margin-top:12px;min-height:44px;line-height:1.5}
@@ -199,7 +207,21 @@ section{display:none}section.on{display:block}
     <button class="btn ghost" id="meterBtn" disabled>Start level test</button>
     <div class="meter" id="meter"></div>
     <div class="meter-read" id="meterRead">Level: — </div>
+    <p class="dim" id="gainTip" style="margin-top:8px"></p>
     <p class="dim" style="margin-top:12px">Note: the voice recognizer always uses your device's <b>default</b> microphone. This test confirms a mic is picking you up — if the wrong one responds, set your headset as the default mic in your phone or computer's sound settings (or connect it by Bluetooth) and test again.</p>
+  </div>
+  <div class="card">
+    <h2>Mic off after</h2>
+    <p>How long the mic keeps listening once you stop calling addresses, so it isn't left picking up nearby conversation. The timer resets each time you say an address.</p>
+    <div class="set-row">
+      <span class="set-lbl">Idle cutoff</span>
+      <div class="mode-pick count-pick" id="micOffPick">
+        <button data-s="3">3 sec</button>
+        <button data-s="5" class="on">5 sec</button>
+        <button data-s="7">7 sec</button>
+        <button data-s="10">10 sec</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -207,7 +229,22 @@ section{display:none}section.on{display:block}
 <section id="tab-train">
   <div class="card">
     <h2>Teach it your voice</h2>
-    <p>These are the names speech engines trip on most. Tap <b>Start training</b> and read each one aloud when it lights up — the app captures how <i>you</i> say it and corrects itself from then on. Under a minute.</p>
+    <p>Tap <b>Start training</b> and read each name aloud when it lights up — the app captures how <i>you</i> say it and corrects itself from then on.</p>
+    <div class="mode-pick" id="modePick">
+      <button data-mode="hard" class="on">Hardest words</button>
+      <button data-mode="random">Random words</button>
+      <button data-mode="auto">Auto · until tuned</button>
+    </div>
+    <p class="dim" id="modeNote" style="margin-top:8px"></p>
+    <div class="set-row">
+      <span class="set-lbl">Words per run</span>
+      <div class="mode-pick count-pick" id="countPick">
+        <button data-n="3">3</button>
+        <button data-n="5" class="on">5</button>
+        <button data-n="8">8</button>
+        <button data-n="10">10</button>
+      </div>
+    </div>
     <div class="train-say" id="trainStage">
       <div class="ts-lbl" id="trainLbl">Ready when you are</div>
       <div class="ts-word" id="trainWord">—</div>
@@ -221,14 +258,14 @@ section{display:none}section.on{display:block}
     </div>
     <div id="trainMore" style="display:none;margin-top:14px">
       <p class="dim" id="trainDone"></p>
-      <button class="btn" id="trainAdd5">Want more accuracy? Add 5 more words</button>
+      <button class="btn" id="trainAdd5">Add 5 more words</button>
       <button class="btn ghost" id="trainRedo">Redo this set</button>
     </div>
     <p class="dim" id="trainProg" style="margin-top:10px"></p>
   </div>
   <div class="card">
     <h2>Learned corrections</h2>
-    <p class="dim">What the recognizer hears → the street it means. These apply instantly on the Sort screen. (They reset when the page closes — say the word and I'll make them save permanently next.)</p>
+    <p class="dim">What the recognizer hears → the street it means. These apply instantly on the Sort screen, and now stay saved on this device.</p>
     <div class="alias-list" id="aliasList"><p class="dim" style="margin-top:8px">None yet.</p></div>
   </div>
 </section>
@@ -274,7 +311,7 @@ const allNames=Object.keys(byName).sort();
 const aliases={}; // heardPhrase -> street name
 
 /* ---- persistence (works on hosted/standalone file; no-op if storage blocked) ---- */
-const LS_ALIAS="schemeCaller.aliases.v1", LS_LOG="schemeCaller.log.v1";
+const LS_ALIAS="schemeCaller.aliases.v1", LS_LOG="schemeCaller.log.v1", LS_PERRUN="schemeCaller.perRun.v1", LS_MICOFF="schemeCaller.micOff.v1";
 function lsGet(k){ try{return JSON.parse(localStorage.getItem(k));}catch(_){return null;} }
 function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(_){ } }
 function saveAliases(){ lsSet(LS_ALIAS,aliases); }
@@ -557,12 +594,21 @@ function showResult(res,spokenInput){
 
 function runLookup(text){
   document.getElementById("heard").textContent="\u201C"+text+"\u201D";
-  showResult(lookup(text),text);
+  const res=lookup(text);
+  showResult(res,text);
+  return res.status;
 }
 
 /* ================= SPEECH RECOGNITION ================= */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let rec=null,listening=false;
+let micOffMs = (function(){ const v=parseInt(lsGet(LS_MICOFF),10); return [3,5,7,10].includes(v)?v*1000:5000; })(); // mic idle cutoff, user-settable
+let autoOffTimer=null;
+function clearAutoOff(){ if(autoOffTimer){clearTimeout(autoOffTimer);autoOffTimer=null;} }
+function armAutoOff(){
+  clearAutoOff();
+  autoOffTimer=setTimeout(()=>{ if(listening){ listening=false; try{rec&&rec.stop();}catch(_){ } updateMicUI(true); } },micOffMs);
+}
 const micBtn=document.getElementById("micBtn"),micState=document.getElementById("micState");
 if(!SR){ document.getElementById("nosr").style.display="block"; micBtn.disabled=true; micBtn.style.opacity=.4; }
 
@@ -584,29 +630,33 @@ function buildRec(){
     let interim="";
     for(let i=e.resultIndex;i<e.results.length;i++){
       const res=e.results[i];
-      if(res.isFinal){ runLookup(pickBestAlt(res).trim()); }
-      else interim+=res[0].transcript;
+      if(res.isFinal){
+        const status=runLookup(pickBestAlt(res).trim());
+        // only a real address keeps the mic alive; random talk lets it time out
+        if(status==="hit"||status==="ask") armAutoOff();
+      } else interim+=res[0].transcript;
     }
     if(interim)document.getElementById("heard").textContent=interim;
   };
   r.onend=()=>{ if(listening){ try{r.start();}catch(_){}} else updateMicUI(); };
   r.onerror=ev=>{
-    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){ listening=false; micState.textContent="Mic blocked — allow it for this page, then tap again"; updateMicUI(); }
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){ listening=false; clearAutoOff(); micState.textContent="Mic blocked — allow it for this page, then tap again"; updateMicUI(); }
   };
   return r;
 }
-function updateMicUI(){
+function updateMicUI(timedOut){
   micBtn.classList.toggle("live",listening);
   micState.classList.toggle("live",listening);
-  micState.textContent=listening?"Listening — call out an address":"Tap to listen";
+  micState.textContent=listening?"Listening — say an address (turns off when idle)":(timedOut?"Mic off — tap to listen again":"Tap to listen");
 }
 micBtn.onclick=()=>{
   if(!SR)return;
-  if(listening){ listening=false; rec&&rec.stop(); updateMicUI(); return; }
+  if(listening){ listening=false; clearAutoOff(); rec&&rec.stop(); updateMicUI(); return; }
   rec=rec||buildRec();
   listening=true;
   try{rec.start();}catch(_){}
   updateMicUI();
+  armAutoOff();   // if nothing is said, shut off after the window
 };
 
 /* typing fallback */
@@ -681,17 +731,20 @@ function stopMeter(){
 
 /* ================= TRAINING ================= */
 // Curated highest-value names: the ones speech engines mangle most.
-// Each represents a distinct phonetic trap (local/French/proper-name/non-word).
-const TRAIN_PRIMARY=["LIMEROCK","BEAUCHAMP","BALLYHAC","ACHORN","ADMONTEM","BELYEA","GILCHREST","SAMOSET"];
-// Reserve, ranked by value; "Add 5 more" pulls the next 5.
-const TRAIN_RESERVE=["MAVERICK","BREWSTER","TALBOT","GARTHGANNON","COMANCOL","CALDERWOOD",
-  "BUTTERMILK","BELVIDERE","BIRCHMONT","PASCAL","MASONIC","ROCKVILLE","DEARBORN","CLARENDON",
-  "BREAKWATER","COMMERCIAL","BROADWAY","PLEASANT","CRESCENT","HAWTHORNE"]
-  .filter(n=>byName[n]); // keep only names actually in the scheme
-const TRAIN_POOL=[...TRAIN_PRIMARY, ...TRAIN_RESERVE].filter(n=>byName[n]);
+const TRAIN_PRIMARY=["LIMEROCK","BEAUCHAMP","ACHORN","BALLYHAC","SAMOSET"];
+const TRAIN_RESERVE=["ADMONTEM","BELYEA","GILCHREST","MAVERICK","BREWSTER","TALBOT","GARTHGANNON",
+  "COMANCOL","CALDERWOOD","BUTTERMILK","BELVIDERE","BIRCHMONT","PASCAL","MASONIC","ROCKVILLE",
+  "DEARBORN","CLARENDON","BREAKWATER","COMMERCIAL","BROADWAY","PLEASANT","CRESCENT","HAWTHORNE"].filter(n=>byName[n]);
+const TRAIN_POOL=[...TRAIN_PRIMARY,...TRAIN_RESERVE].filter(n=>byName[n]);
 
-let trainCount=TRAIN_PRIMARY.length;   // how many of the pool are in the active set
-let runIdx=0, running=false, trainRec=null, stepTimer=null, gotResult=false;
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// MODE: 'hard' curated hardest first · 'random' shuffled from all streets · 'auto' runs until goal met
+let mode="hard";
+let perRun = (function(){ const v=parseInt(lsGet(LS_PERRUN),10); return [3,5,8,10].includes(v)?v:5; })();  // words per run, user-settable
+let queue=[], qIdx=0;         // current run's word list and pointer
+let running=false, trainRec=null, stepTimer=null, gotResult=false;
+let learnedThisRun=0, cleanStreak=0;
 
 const trainWordEl=document.getElementById("trainWord"),
       trainResEl=document.getElementById("trainRes"),
@@ -700,13 +753,54 @@ const trainWordEl=document.getElementById("trainWord"),
       trainFill=document.getElementById("trainFill"),
       trainProg=document.getElementById("trainProg"),
       trainMoreBox=document.getElementById("trainMore"),
-      trainDone=document.getElementById("trainDone");
+      trainDone=document.getElementById("trainDone"),
+      modeNote=document.getElementById("modeNote"),
+      addBtn=document.getElementById("trainAdd5");
+
+function modeNoteText(){
+  if(mode==="hard")   return "The "+perRun+" names speech engines miss most, hardest first. Best place to start.";
+  if(mode==="random") return "Pulls "+perRun+" names at random from all "+allNames.length+" streets — covers more ground but learns a bit slower.";
+  return "Keeps giving you names until it has learned "+perRun+" corrections (or gets "+perRun+" right in a row) — then stops on its own. Hard names first, then random.";
+}
 
 function updTrainProg(){
-  trainProg.textContent="Set: "+trainCount+" names · learned corrections: "+Object.keys(aliases).length;
+  trainProg.textContent="Learned corrections saved: "+Object.keys(aliases).length+(running&&mode==="auto"?" · this run "+learnedThisRun+"/"+perRun:"");
 }
+
+function refreshTrainLabels(){
+  modeNote.textContent=modeNoteText();
+  addBtn.textContent="Add "+perRun+(mode==="random"?" more random words":" more words");
+}
+
+// words-per-run picker
+document.querySelectorAll("#countPick button").forEach(b=>{
+  if(parseInt(b.dataset.n,10)===perRun){ document.querySelectorAll("#countPick button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); }
+  b.onclick=()=>{
+    if(running)return;
+    perRun=parseInt(b.dataset.n,10); lsSet(LS_PERRUN,perRun);
+    document.querySelectorAll("#countPick button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    refreshTrainLabels();
+  };
+});
+
+// mode picker
+document.querySelectorAll("#modePick button").forEach(b=>{
+  b.onclick=()=>{
+    if(running)return; // don't switch mid-run
+    document.querySelectorAll("#modePick button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); mode=b.dataset.mode;
+    refreshTrainLabels();
+  };
+});
+refreshTrainLabels();
 updTrainProg();
 
+function buildQueue(){
+  if(mode==="hard")        queue=TRAIN_POOL.slice(0,perRun);
+  else if(mode==="random") queue=shuffle(allNames).slice(0,perRun);
+  else /* auto */          queue=[...TRAIN_PRIMARY, ...shuffle(allNames.filter(n=>!TRAIN_PRIMARY.includes(n)))];
+  qIdx=0;
+}
 
 function setBtns(state){ // 'idle' | 'running' | 'done'
   document.getElementById("trainStart").style.display = state==="running"?"none":"inline-block";
@@ -714,25 +808,29 @@ function setBtns(state){ // 'idle' | 'running' | 'done'
   document.getElementById("trainSkip").style.display  = state==="running"?"inline-block":"none";
   document.getElementById("trainStop").style.display  = state==="running"?"inline-block":"none";
   trainMoreBox.style.display = state==="done"?"block":"none";
+  document.querySelectorAll("#modePick button, #countPick button").forEach(x=>x.disabled = state==="running");
 }
 
 document.getElementById("trainStart").onclick=()=>{
   if(!SR){ trainResEl.innerHTML='<span class="bad">This browser can\u2019t do voice recognition. On iPhone use Safari; on Android/PC use Chrome or Edge.</span>'; return; }
-  // stop the sort mic if it was running
   listening=false; if(rec){try{rec.stop();}catch(_){}}
-  running=true; runIdx=0; setBtns("running"); trainResEl.innerHTML="";
+  addBtn.disabled=false;
+  learnedThisRun=0; cleanStreak=0;
+  buildQueue();
+  running=true; setBtns("running"); trainResEl.innerHTML="";
   trainStep();
 };
 document.getElementById("trainStop").onclick=()=>stopTraining();
-document.getElementById("trainSkip").onclick=()=>{ if(running){ cleanupStep(); runIdx++; trainStep(); } };
+document.getElementById("trainSkip").onclick=()=>{ if(running){ cleanupStep(); qIdx++; trainStep(); } };
 document.getElementById("trainRedo").onclick=()=>{ document.getElementById("trainStart").click(); };
-document.getElementById("trainAdd5").onclick=()=>{
-  const before=trainCount;
-  trainCount=Math.min(TRAIN_POOL.length, trainCount+5);
-  updTrainProg();
-  if(trainCount===before){ trainDone.textContent="That\u2019s every name in the training pool — "+trainCount+" trained."; return; }
-  // run just the newly added slice
-  running=true; runIdx=before; setBtns("running"); trainResEl.innerHTML="";
+addBtn.onclick=()=>{
+  // queue up 5 more words appropriate to the mode and keep going
+  let extra;
+  if(mode==="random"||mode==="auto") extra=shuffle(allNames.filter(n=>!queue.includes(n))).slice(0,perRun);
+  else extra=TRAIN_POOL.filter(n=>!queue.includes(n)).slice(0,perRun);
+  if(!extra.length){ trainDone.textContent="That\u2019s every available name."; addBtn.disabled=true; return; }
+  queue=queue.concat(extra);
+  running=true; setBtns("running"); trainResEl.innerHTML="";
   trainStep();
 };
 
@@ -746,15 +844,22 @@ function cleanupStep(){
 function stopTraining(){
   running=false; cleanupStep();
   trainLblEl.textContent="Stopped"; trainWordEl.textContent="—";
-  setBtns(runIdx>0?"done":"idle");
-  if(runIdx>0)trainDone.textContent="Stopped after "+runIdx+" name"+(runIdx===1?"":"s")+".";
+  setBtns(qIdx>0?"done":"idle");
+  if(qIdx>0)trainDone.textContent="Stopped after "+qIdx+" name"+(qIdx===1?"":"s")+" · "+learnedThisRun+" learned.";
 }
+
+function autoGoalMet(){ return mode==="auto" && (learnedThisRun>=perRun || cleanStreak>=perRun); }
 
 function trainStep(){
   cleanupStep();
-  if(runIdx>=trainCount){ finishBatch(); return; }
-  const target=TRAIN_POOL[runIdx];
-  trainFill.style.width=Math.round(runIdx/trainCount*100)+"%";
+  if(autoGoalMet()){ finishBatch("Auto training finished — your voice is tuned."); return; }
+  if(qIdx>=queue.length){ finishBatch(); return; }
+  const target=queue[qIdx];
+  // progress bar: known length for hard/random; for auto show progress toward goal
+  const pct = mode==="auto"
+    ? Math.round(Math.max(learnedThisRun,cleanStreak)/perRun*100)
+    : Math.round(qIdx/queue.length*100);
+  trainFill.style.width=pct+"%";
   trainLblEl.textContent="Say this name out loud";
   trainWordEl.textContent=target;
   trainStage.classList.add("listening");
@@ -762,10 +867,8 @@ function trainStep(){
   trainRec=new SR();
   trainRec.lang="en-US"; trainRec.interimResults=false; trainRec.maxAlternatives=3; trainRec.continuous=false;
   trainRec.onresult=e=>{
-    let best="";
-    for(let i=0;i<e.results.length;i++) best+=e.results[i][0].transcript;
-    gotResult=true;
-    trainCapture(target, best.trim(), e.results[0]);
+    let best=""; for(let i=0;i<e.results.length;i++) best+=e.results[i][0].transcript;
+    gotResult=true; trainCapture(target, best.trim(), e.results[0]);
   };
   trainRec.onerror=ev=>{
     if(ev.error==="not-allowed"){ running=false; cleanupStep();
@@ -774,45 +877,42 @@ function trainStep(){
   };
   trainRec.onend=()=>{
     if(!running)return;
-    if(!gotResult){ // heard nothing — give one nudge, then move on
+    if(!gotResult){
       trainResEl.innerHTML='<span class="bad">Didn\u2019t catch that</span> — speak a bit louder. Skipping to the next.';
-      stepTimer=setTimeout(()=>{ runIdx++; trainStep(); },1100);
+      stepTimer=setTimeout(()=>{ qIdx++; trainStep(); },1100);
     }
   };
-  try{ trainRec.start(); }catch(_){ stepTimer=setTimeout(()=>{runIdx++;trainStep();},300); }
+  try{ trainRec.start(); }catch(_){ stepTimer=setTimeout(()=>{qIdx++;trainStep();},300); }
 }
 
 function trainCapture(target, text, result){
   trainStage.classList.remove("listening");
-  // gather alternatives the engine offered
-  const alts=[];
-  if(result){ for(let i=0;i<result.length;i++) alts.push(result[i].transcript); }
+  const alts=[]; if(result){ for(let i=0;i<result.length;i++) alts.push(result[i].transcript); }
   const directHit=alts.some(a=>{ const f=findStreet(normalize(a).split(" ")); return f&&f.name===target; });
 
   if(directHit){
+    cleanStreak++;
     trainResEl.innerHTML='\u201C'+escapeHtml(text)+'\u201D \u2192 <span class="good">'+target+' \u2713</span> already recognized';
   }else{
-    // save what the engine actually heard as an alias to the target
+    cleanStreak=0;
     const words=normalize(text).split(" ").filter(w=>!SUFFIX_WORDS[w]);
     const key=words.join(" ").trim() || normalize(text);
-    if(key){ aliases[key]=target; saveAliases(); renderAliases(); }
+    if(key){ if(!aliases[key])learnedThisRun++; aliases[key]=target; saveAliases(); renderAliases(); }
     trainResEl.innerHTML='\u201C'+escapeHtml(text)+'\u201D \u2192 <span class="bad">learned</span> as <b>'+target+'</b>';
   }
   updTrainProg();
-  runIdx++;
+  qIdx++;
   cleanupStep();
   if(running) stepTimer=setTimeout(trainStep, 1200);
 }
 
-function finishBatch(){
+function finishBatch(msg){
   running=false; cleanupStep();
   trainFill.style.width="100%";
-  trainLblEl.textContent="Done";
-  trainWordEl.textContent="\u2713";
+  trainLblEl.textContent="Done"; trainWordEl.textContent="\u2713";
   const learned=Object.keys(aliases).length;
-  trainDone.textContent="Trained "+trainCount+" names. "+(learned?learned+" correction"+(learned===1?"":"s")+" saved.":"No corrections needed — your voice is matching cleanly.");
+  trainDone.textContent=(msg?msg+" ":"")+"Did "+qIdx+" name"+(qIdx===1?"":"s")+" this run. "+learned+" correction"+(learned===1?"":"s")+" saved in total.";
   setBtns("done");
-  if(trainCount>=TRAIN_POOL.length){ document.getElementById("trainAdd5").disabled=true; document.getElementById("trainAdd5").textContent="All training words used"; }
 }
 
 function renderAliases(){
@@ -898,6 +998,28 @@ document.getElementById("clearLog").onclick=()=>{
 
 /* ================= READINESS CHECK ================= */
 renderAliases();
+
+// mic idle-cutoff picker
+document.querySelectorAll("#micOffPick button").forEach(b=>{
+  if(parseInt(b.dataset.s,10)*1000===micOffMs){ document.querySelectorAll("#micOffPick button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); }
+  b.onclick=()=>{
+    micOffMs=parseInt(b.dataset.s,10)*1000; lsSet(LS_MICOFF,micOffMs/1000);
+    document.querySelectorAll("#micOffPick button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    if(listening)armAutoOff(); // apply immediately
+  };
+});
+
+(function gainTip(){
+  const t=document.getElementById("gainTip"); if(!t)return;
+  const ua=navigator.userAgent;
+  let where;
+  if(/iP(hone|ad|od)/.test(ua)) where="iPhone has no mic-volume slider — adjust by moving the mic closer or using a headset.";
+  else if(/Android/.test(ua)) where="Android has no mic-volume slider — adjust by moving the mic closer or using a headset.";
+  else if(/Windows/.test(ua)) where="To change input volume: Windows Settings \u2192 System \u2192 Sound \u2192 your mic \u2192 Input volume (and Microphone Boost).";
+  else if(/Mac/.test(ua)) where="To change input volume: Apple menu \u2192 System Settings \u2192 Sound \u2192 Input \u2192 Input volume slider.";
+  else where="To change input volume, use your device's Sound settings \u2192 Input. The app can\u2019t set mic level itself.";
+  t.innerHTML="<b>To turn the level up or down:</b> "+where;
+})();
 (function(){
   const b=document.getElementById("ready");
   const secure=window.isSecureContext || location.hostname==="localhost" || location.hostname==="127.0.0.1";
